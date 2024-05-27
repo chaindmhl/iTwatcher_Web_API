@@ -1,7 +1,7 @@
 from django.conf import settings
-import datetime, requests, tempfile, os, cv2
+import datetime, requests, tempfile, os, cv2, queue, threading
 from .deepsort_tric.LPR_trike import Plate_Recognition_trike
-from tracking.models import LPRVideo  # Replace 'myapp' with the name of your Django app
+from tracking.models import LPRVideo
 
 
 REQUEST_URL = f"http://{settings.HOST}:8000/"
@@ -25,7 +25,7 @@ def process_lpr_trike(video_path=None, livestream_url=None, is_live_stream=False
         # Create an instance of the VehiclesCounting class
         prt = Plate_Recognition_trike(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/lpd_comb',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/PlateDetection',
                               size=416,
                               tiny=False,
                               model='yolov4',
@@ -36,15 +36,23 @@ def process_lpr_trike(video_path=None, livestream_url=None, is_live_stream=False
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100))
 
-        # Run the tracking algorithm on the video
-        print("Starting video processing...")
-        prt.run()
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=prt.producer)
+        consumer_thread = threading.Thread(target=prt.consumer)
+        showframe_thread = threading.Thread(target=prt.show_frames)
 
-        # Release the video capture object and close any open windows
-        #video_file.release()
-        cv2.destroyAllWindows()
+        producer_thread.start()
+        consumer_thread.start()
+        showframe_thread.start()
+
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        showframe_thread.join()
 
         # Create an instance of ObjectTrack and save the video file to it
         output_lpr = LPRVideo.objects.create(
@@ -64,18 +72,15 @@ def process_lpr_trike(video_path=None, livestream_url=None, is_live_stream=False
         os.unlink(output_lpr_temp.name)
 
     elif livestream_url:
-        print("Processing livestream URL:", livestream_url)
         # Check if the livestream_url is valid
-        # response = requests.get(livestream_url, auth=('username', 'password'))
-        # if response.status_code != 200:
-        #     # Handle invalid url    
-        #     print("Invalid livestream URL")  
-        #     return {'error': 'Invalid livestream url'}
+        response = requests.get(livestream_url, auth=('username', 'password'))
+        if response.status_code != 200:
+            # Handle invalid url    
+            return {'error': 'Invalid livestream url'}
 
         # Create a VideoCapture object using the livestream url
-        # video_file = cv2.VideoCapture(livestream_url)
-        #livestream_url = "rtsp://admin:Nopassword1234@124.105.176.246:554/Streaming/Channels/301"
         video_file = cv2.VideoCapture(livestream_url)
+
         # get the current timestamp
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
@@ -86,7 +91,7 @@ def process_lpr_trike(video_path=None, livestream_url=None, is_live_stream=False
         # Create an instance of the VehiclesCounting class
         prt = Plate_Recognition_trike(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/lpr_all',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/PlateDetection',
                               size=416,
                               tiny=False,
                               model='yolov4',
@@ -98,9 +103,21 @@ def process_lpr_trike(video_path=None, livestream_url=None, is_live_stream=False
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100))
+        
 
-        # Run the tracking algorithm on the video stream
-        prt.run()
-    
-    print("process_lpr_trike completed.")
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=prt.producer)
+        consumer_thread = threading.Thread(target=prt.consumer)
+        showframe_thread = threading.Thread(target=prt.show_frames)
+
+        producer_thread.start()
+        consumer_thread.start()
+        showframe_thread.start()
+
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        showframe_thread.join()
