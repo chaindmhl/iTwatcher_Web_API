@@ -1,6 +1,6 @@
 from django.conf import settings
 from tracking.deepsort_tric.swerving import Detect_Swerving
-import datetime, requests, tempfile, os, cv2
+import datetime, requests, tempfile, os, cv2, threading, queue
 from tracking.models import OutputVideo
 
 
@@ -20,9 +20,9 @@ def process_swerving(video_path=None, livestream_url=None, is_live_stream=False,
         output_video_path = os.path.join(output_folder_path, f"tracked_{os.path.basename(video_path)}")
 
         # Create an instance of the VehiclesCounting class
-        vc = Detect_Swerving(file_counter_log_name='swerving.log',
+        ds = Detect_Swerving(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/lpd_comb',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/PlateDetection',
                               size=416,
                               tiny=False,
                               model='yolov4',
@@ -33,14 +33,24 @@ def process_swerving(video_path=None, livestream_url=None, is_live_stream=False,
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100))
 
-        # Run the tracking algorithm on the video
-        vc.run()
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=ds.producer)
+        consumer_thread = threading.Thread(target=ds.consumer)
+        showframe_thread = threading.Thread(target=ds.show_frames)
 
-        # Release the video capture object and close any open windows
-        #video_file.release()
-        cv2.destroyAllWindows()
+        producer_thread.start()
+        consumer_thread.start()
+        showframe_thread.start()
+
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        showframe_thread.join()
+
 
         # Create an instance of ObjectTrack and save the video file to it
         output_swerve = OutputVideo.objects.create(
@@ -77,13 +87,12 @@ def process_swerving(video_path=None, livestream_url=None, is_live_stream=False,
         os.makedirs(output_folder_path, exist_ok=True)
 
         # Create an instance of the VehiclesCounting class
-        vc = Detect_Swerving(file_counter_log_name='swerving.log',
+        ds = Detect_Swerving(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/lpd_comb',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/PlateDetection',
                               size=416,
                               tiny=False,
                               model='yolov4',
-                              #video=stream_path,
                               video=video_file,
                               output=output_video_path,
                               output_format='XVID',
@@ -91,7 +100,21 @@ def process_swerving(video_path=None, livestream_url=None, is_live_stream=False,
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100)),
+        
 
-        # Run the tracking algorithm on the video stream
-        vc.run()
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=ds.producer)
+        consumer_thread = threading.Thread(target=ds.consumer)
+        showframe_thread = threading.Thread(target=ds.show_frames)
+
+        producer_thread.start()
+        consumer_thread.start()
+        showframe_thread.start()
+
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        showframe_thread.join()
