@@ -1,8 +1,7 @@
 from django.conf import settings
-import datetime, requests, tempfile, os, cv2
 from .deepsort_tric.LPR_comb import Plate_Recognition_comb
-from tracking.models import LPRVideo  # Replace 'myapp' with the name of your Django app
-import threading, queue
+from tracking.models import LPRVideo
+import datetime, requests, tempfile, os, cv2, threading, queue
 
 REQUEST_URL = f"http://{settings.HOST}:8000/"
 
@@ -58,6 +57,7 @@ def process_lpd_comb(video_path=None, livestream_url=None, is_live_stream=False,
 
         # Create a temporary file for the video file
         output_lpr_temp = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+
         with open(output_video_path, 'rb') as f:
             output_lpr_temp.write(f.read())
         output_lpr_temp.close()
