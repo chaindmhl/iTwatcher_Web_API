@@ -1,7 +1,7 @@
 from django.conf import settings
-import datetime, requests, tempfile, os, cv2
 from tracking.deepsort_tric.LPR_all import Plate_Recognition
-from tracking.models import LPRVideo  # Replace 'myapp' with the name of your Django app
+from tracking.models import LPRVideo
+import datetime, requests, tempfile, os, cv2, threading, queue
 
 
 REQUEST_URL = f"http://{settings.HOST}:8000/"
@@ -23,7 +23,7 @@ def process_alllpr(video_path=None, livestream_url=None, is_live_stream=False, v
         # Create an instance of the VehiclesCounting class
         pr = Plate_Recognition(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/lpr_all',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/PlateDetection',
                               size=416,
                               tiny=False,
                               model='yolov4',
@@ -34,15 +34,23 @@ def process_alllpr(video_path=None, livestream_url=None, is_live_stream=False, v
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100))
 
-        # Run the tracking algorithm on the video
-        pr.run()
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=pr.producer)
+        consumer_thread = threading.Thread(target=pr.consumer)
+        showframe_thread = threading.Thread(target=pr.show_frames)
 
-        # Release the video capture object and close any open windows
-        #video_file.release()
-        cv2.destroyAllWindows()
+        producer_thread.start()
+        consumer_thread.start()
+        showframe_thread.start()
 
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        showframe_thread.join()
         # Create an instance of ObjectTrack and save the video file to it
         output_lpr = LPRVideo.objects.create(
             video_block=output_video_path,
@@ -80,11 +88,10 @@ def process_alllpr(video_path=None, livestream_url=None, is_live_stream=False, v
         # Create an instance of the VehiclesCounting class
         pr = Plate_Recognition(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/itwatcher/tricycle/tracking/deepsort_tric/checkpoints/yolov4-416',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/PlateDetection',
                               size=416,
                               tiny=False,
                               model='yolov4',
-                              #video=stream_path,
                               video=video_file,
                               output=output_video_path,
                               output_format='XVID',
@@ -92,8 +99,22 @@ def process_alllpr(video_path=None, livestream_url=None, is_live_stream=False, v
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100))
+        
 
-        # Run the tracking algorithm on the video stream
-        pr.run()
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=pr.producer)
+        consumer_thread = threading.Thread(target=pr.consumer)
+        showframe_thread = threading.Thread(target=pr.show_frames)
+
+        producer_thread.start()
+        consumer_thread.start()
+        showframe_thread.start()
+
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        showframe_thread.join()
 
