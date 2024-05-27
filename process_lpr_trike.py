@@ -1,7 +1,7 @@
 from django.conf import settings
 import datetime, requests, tempfile, os, cv2, queue, threading
 from .deepsort_tric.LPR_trike import Plate_Recognition_trike
-from tracking.models import LPRVideo
+from tracking.models import LPRVideo  # Replace 'myapp' with the name of your Django app
 
 
 REQUEST_URL = f"http://{settings.HOST}:8000/"
