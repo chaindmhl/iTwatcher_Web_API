@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>iTWATCHER API</title>
+    <!-- Add your CSS and JS files here -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>yolov4-darknet Training</title>
+    <style>
+
+        .form-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        form {
+            max-width: 400px;
+            width: 100%;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        input {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+    <a class="navbar-brand" href="http://127.0.0.1:8000/my-url/">iTWatcher</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="collapsibleNavbar">
+        <ul class="navbar-nav ml-auto">
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'downloadrequest-list-create' %}">Download Video From NVR</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'upload-video' %}">Upload Video</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'train' %}">Train</a>
+            </li>
+            
+            <li class="nav-item">
+                <span class="navbar-text mr-2">Welcome, {{ user.username }}</span>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Logout</a>
+            </li>
+            <!-- Add more links for other views here -->
+        </ul>
+    </div>
+</nav>
+<div class="form-container">
+
+    <form action="{% url 'train' %}" method="post">
+        {% csrf_token %}
+        <h1>YOLOv4-Darknet Training</h1>
+        <label for="data_path">Data Path:</label>
+        <input type="text" id="data_path" name="data_path" required><br>
+
+        <label for="cfg_path">Config Path:</label>
+        <input type="text" id="cfg_path" name="cfg_path" required><br>
+
+        <label for="weight_path">Weight Path:</label>
+        <input type="text" id="weight_path" name="weight_path" required><br>
+
+        <!-- Add other input fields as needed -->
+
+        <input type="submit" value="Train">
+    </form>
+</div>
+</body>
+</html>

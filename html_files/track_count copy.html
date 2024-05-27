@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>iTWATCHER API</title>
+    <!-- Add your CSS and JS files here -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+    <a class="navbar-brand" href="http://127.0.0.1:8000/my-url/">iTWatcher</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="collapsibleNavbar">
+        <ul class="navbar-nav ml-auto">
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'downloadrequest-list-create' %}">Download Video From NVR</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'upload-video' %}">Upload Video</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'train' %}">Train</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'lpr-view' %}">LPR</a>
+            </li>
+            
+            <li class="nav-item">
+                <span class="navbar-text mr-2">Welcome, {{ user.username }}</span>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Logout</a>
+            </li>
+            <!-- Add more links for other views here -->
+        </ul>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <!-- Track and Count Section -->
+    <h2>Track and Count</h2>
+    <form method="post" enctype="multipart/form-data" id="track-count-form">
+        {% csrf_token %}
+        <div class="row">
+            <div class="col-md-6">
+                <label for="video_path_tc">Video file:</label>
+                <select name="video_path" id="video_path_tc" class="form-control">
+                    {% for video in videos %}
+                        <option value="{{ video.id }}">{{ video.file.path }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <label for="camera_feed_url_tc">Live stream URL:</label>
+                <input type="text" name="camera_feed_url" id="camera-url-input_tc" class="form-control">
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <label for="vehicle_type_tc">Model Type:</label>
+                <select name="vehicle_type" id="vehicle_type_tc" class="form-control">
+                    <option value="tricycle">Tricycle</option>
+                    <option value="all_vehicle">Catch All</option>
+                    <option value="combi">iTWatcher</option>
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <input type="submit" value="Process" class="btn btn-primary">
+            </div>
+        </div>
+    </form>
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <a href="{% url 'count_log_list' %}" class="btn btn-primary">View Track and Count List</a>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    $(document).ready(function() {
+        // Your existing AJAX code here
+        $('#track-count-form').on('submit', function(event) {
+            event.preventDefault();
+            var formData = new FormData(this);
+            var selectedOption = $('#vehicle_type_tc').val();
+
+            // Dynamically set the form action based on the selected option
+            if (selectedOption === 'tricycle') {
+                $(this).attr('action', 'http://127.0.0.1:8000/tracking/tric/');
+            } else if (selectedOption === 'all_vehicle') {
+                $(this).attr('action', 'http://127.0.0.1:8000/tracking/catchall/');
+            } else if (selectedOption === 'combi') {
+                $(this).attr('action', 'http://127.0.0.1:8000/tracking/combi/');
+            }
+
+            $.ajax({
+                url: $(this).attr('action'),
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    // Handle success response
+                },
+                error: function(response) {
+                    console.log('Error:', response);
+                    // Handle error response
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

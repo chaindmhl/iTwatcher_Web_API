@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>iTWATCHER API</title>
+    <!-- Add your CSS and JS files here -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+</head>
+<body>
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+    <a class="navbar-brand" href="http://127.0.0.1:8000/my-url/">iTWatcher</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="collapsibleNavbar">
+        <ul class="navbar-nav ml-auto">
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'downloadrequest-list-create' %}">Download Video From NVR</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'upload-video' %}">Upload Video</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'train' %}">Train</a>
+            </li>
+            
+            <li class="nav-item">
+                <span class="navbar-text mr-2">Welcome, {{ user.username }}</span>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Logout</a>
+            </li>
+            <!-- Add more links for other views here -->
+        </ul>
+    </div>
+</nav>
+    <div class="container mt-5">
+        <h2 class="mb-4">Download Video from NVR</h2>
+        
+        <form id="downloadForm" method="post" action="{% url 'downloadrequest-list-create' %}" class="needs-validation" novalidate>
+            {% csrf_token %}
+
+            {% if error_message %}
+                <div id="error-message" class="alert alert-danger mt-3" role="alert">
+                    {{ error_message }}
+                </div>
+            {% endif %}
+
+            {% if filename_exists %}
+                <div id="filename-exists" class="alert alert-danger mt-3" role="alert">
+                    {{ filename_exists }}
+                </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="start_date">Start Date:</label>
+                <input type="date" class="form-control" name="start_date" required>
+            </div>
+
+            <div class="form-group">
+                <label for="channel">Channel:</label>
+                <select class="form-control" name="channel" required>
+                    <option value="101">101</option>
+                    <option value="201">201</option>
+                    <option value="301">301</option>
+                    <option value="401">401</option>
+                    <option value="501">501</option>
+                    <option value="601">601</option>
+                    <option value="701">701</option>
+                    <option value="801">801</option>
+                </select>
+            </div>
+            
+            <button type="button" class="btn btn-primary" onclick="confirmAndSubmit()">Download</button>
+        </form>
+    </div>
+
+    <script>
+        function confirmAndSubmit() {
+            var form = document.getElementById('downloadForm');
+            var startDate = form.elements['start_date'].value;
+            var channel = form.elements['channel'].value;
+
+            if (!startDate || !channel) {
+                alert('No data has been selected.');
+                return;
+            }
+
+            if (confirm('Are you sure you want to download?')) {
+                form.submit();
+            }
+        }
+    </script>
+</body>
+</html>

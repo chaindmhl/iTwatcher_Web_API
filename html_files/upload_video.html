@@ -1,0 +1,65 @@
+<span style="font-family: verdana, geneva, sans-serif;"><!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>iTWatcher</title>
+      {% load static %}
+      <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}" />
+      <link rel="stylesheet" href="{% static 'style.css' %}" />
+      <!-- Font Awesome Cdn Link -->
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
+    </head>
+    <body>
+      <div class="container">
+        <nav>
+          <ul>
+            <li><a href="{% url 'my-view' %}" class="logo">
+              <img src="/itwatcher.png" alt="">
+              <span class="nav-item">iTWatcher</span>
+            </a></li>
+            <li><a href="{% url 'my-view' %}">
+              <i class="fas fa-home"></i>
+              <span class="nav-item">Home</span>
+            </a></li>
+            <li><a href="{% url 'downloadrequest-list-create' %}">
+              <i class="fas fa-download"></i>
+              <span class="nav-item">Download</span>
+            </a></li>
+            <li><a href="{% url 'upload-video' %}">
+              <i class="fas fa-upload"></i>
+              <span class="nav-item">Upload</span>
+            </a></li>
+            <li><a href="{% url 'train' %}">
+              <i class="fas fa-chart-line"></i>
+              <span class="nav-item">Train</span>
+            </a></li>
+            <li><a href="{% url 'login' %}" class="logout">
+              <i class="fas fa-sign-out-alt"></i>
+              <span class="nav-item">Log out</span>
+            </a></li>
+          </ul>
+        </nav>
+        
+        <div class="vidcontainer">
+            <div class="popup" id="upload-status">
+            <form id="upload-form" enctype="multipart/form-data" method="post" action="http://127.0.0.1:8000/tracking/video/">
+                <h2>Upload Video</h2>
+                <input type="file" name="file">
+                {% csrf_token %}
+                <!-- Remove the user selection dropdown -->
+                <input type="submit" id="upload-button" value="Upload Video">
+            </form>
+            <script>
+                // Set the CSRF token as a default header for all AJAX requests
+                var csrf_token = document.getElementsByName('csrfmiddlewaretoken')[0].value;
+                $.ajaxSetup({
+                    headers: {
+                        'X-CSRFToken': csrf_token
+                    }
+                });
+            </script>
+            </div>
+        </div>
+      </div>
+    </body>
+</html>

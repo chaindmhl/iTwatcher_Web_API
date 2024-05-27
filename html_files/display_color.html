@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <style>
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                border: 1px solid #5c5353;
+            }
+    
+            th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: center;
+            }
+    
+            th {
+                background-color: #f2f2f2;
+            }
+    
+            img {
+                max-width: 100px;
+                display: block;
+                margin: 0 auto; /* Center-align the images */
+            }
+
+            .button-container {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .button-container a {
+                margin-bottom: 10px; /* Add your desired margin value here */
+            }
+            
+        </style>
+        <title>Vehicle Color Log</title>
+    </head>
+<body>
+    <h1>Vehicle Color Log Information</h1>
+    
+    {% if color_logs %}
+        <table>
+            <thead>
+                <tr>
+                    <th>TIME FRAME</th>
+                    <th>VEHICLE IMAGE</th>
+                    <th>COLOR</th>
+                    <th>VIEW DETAILS</th>             
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in color_logs %}
+                    <tr>
+                        <td>{{ log.timestamp }}</td>
+                        <td><img src="{{ log.vehicle_image.url }}" alt="Vehicle Image" width="100"></td>
+                        <td contenteditable="true" class="editable-color" data-log-id="{{ log.id }}">{{ log.color }}</td>
+                        <td><a href="{% url 'view_colorframe' log_id=log.id %}" class="btn btn-primary btn-sm">
+                            View Frame
+                        </a>
+                        <br>
+                            <a href="{% url 'view_camera_map' log_id=log.id %}" class="btn btn-primary btn-sm">
+                                View Camera Map
+                        </a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No vehicle color logs available.</p>
+    {% endif %}
+</body>
+</html>

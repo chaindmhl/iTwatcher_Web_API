@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Success</title>
+    <!-- Add any additional styling or scripts if needed -->
+</head>
+<body>
+    <div class="container mt-5">
+        {% if directory_exists %}
+            <h2 class="text-danger">Download Unsuccessful!</h2>
+            <div class="alert alert-warning mt-3" role="alert">
+                {{ error_message }}
+            </div>
+        {% else %}
+            <h2 class="text-success">Video Download Successful!</h2>
+            <!-- Additional success message or links can be added here -->
+        {% endif %}
+    </div>
+</body>
+</html>

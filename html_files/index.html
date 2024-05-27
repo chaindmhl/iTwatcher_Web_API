@@ -1,0 +1,287 @@
+<span style="font-family: verdana, geneva, sans-serif;"><!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>iTWatcher</title>
+      {% load static %}
+      <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}" />
+      <link rel="stylesheet" href="{% static 'style.css' %}" />
+      <!-- Font Awesome Cdn Link -->
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+      <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    </head>
+    <body>
+      <div class="container">
+        <nav>
+          <ul>
+            <li><a href="{% url 'my-view' %}" class="logo">
+              <img src="{% static 'itwatcher.jpg' %}"alt="itwatcher logo">
+              <span class="nav-item">iTWatcher</span>
+            </a></li>
+            <li><a href="{% url 'my-view' %}">
+              <i class="fas fa-home"></i>
+              <span class="nav-item">Home</span>
+            </a></li>
+            <li><a href="{% url 'downloadrequest-list-create' %}">
+              <i class="fas fa-download"></i>
+              <span class="nav-item">Download</span>
+            </a></li>
+            <li><a href="{% url 'upload-video' %}">
+              <i class="fas fa-upload"></i>
+              <span class="nav-item">Upload</span>
+            </a></li>
+            <li><a href="{% url 'train' %}">
+              <i class="fas fa-chart-line"></i>
+              <span class="nav-item">Train</span>
+            </a></li>
+            <li><a href="{% url 'login' %}" class="logout">
+              <i class="fas fa-sign-out-alt"></i>
+              <span class="nav-item">Log out</span>
+            </a></li>
+          </ul>
+        </nav>
+    
+        <section class="main">
+          <div class="main-top">
+            <h1>Models</h1>
+            <i class="fas fa-user-cog"></i>
+          </div>
+          <div class="main-skills">
+            <div class="lpr">
+              <img src="{% static 'lpr.png' %}"class="small-image">
+              <h3>License Plate Recognition</h3>
+              <button onclick="window.location.href='http://127.0.0.1:8000/lpr/'">Select</button>
+            </div>
+            <div class="track">
+              <img src="{% static 'vehicle.png' %}" class="small-image">
+              <h3>Tracking and Counting</h3>
+              <button onclick="window.location.href='http://127.0.0.1:8000/track/'">Select</button>
+            </div>
+            <div class="color">
+              <img src="{% static 'color.png' %}" class="small-image">
+              <h3>Color Recognition</h3>
+              <button onclick="window.location.href='http://127.0.0.1:8000/color/'">Select</button>
+            </div>
+            <div class="violation">
+              <img src="{% static 'vio.jpg' %}" class="small-image">
+              <h3>Violation Detection</h3>
+              <button onclick="window.location.href='http://127.0.0.1:8000/violation/'">Select</button>
+            </div>
+          </div>
+          
+    
+          <section class="main-course">
+            <h1>Applications</h1>
+            <div class="course-box">
+              <div class="course">
+                <div class="box">
+                  <h3>Upload Video</h3>
+                  <button type="submit" class="btn" onclick="openPopup()">Upload</button>
+                  <div class="popup" id="upload-status">
+                    <form id="upload-form" enctype="multipart/form-data" method="post" action="http://127.0.0.1:8000/tracking/video/">
+                        <h2>Upload Video</h2>
+                        <input type="file" name="file">
+                        {% csrf_token %}
+                        <!-- Remove the user selection dropdown -->
+                        <button type="submit" id="upload-button">Upload Video</button>
+                        <button type="button" onclick="closePopup()">Close</button>    
+                    </form>
+                    <div id="upload-message" style="display: none;">Video uploaded</div>
+                    <script>
+                        // Set the CSRF token as a default header for all AJAX requests
+                        var csrf_token = document.getElementsByName('csrfmiddlewaretoken')[0].value;
+                        document.getElementById('upload-form').addEventListener('submit', function(event) {
+                            console.log("Form submitted!"); 
+                            event.preventDefault(); // Prevent the default form submission
+                            // Handle the file upload using AJAX
+                            var formData = new FormData(this);
+                            // Add any additional data if needed
+                            // formData.append('key', 'value');
+
+                            // Perform the AJAX request
+                            $.ajax({
+                                url: "http://127.0.0.1:8000/tracking/video/",
+                                type: "POST",
+                                data: formData,
+                                contentType: false,
+                                processData: false,
+                                success: function(response) {
+                                    // Handle success response
+                                    console.log(response);
+                                    // Display the "Video uploaded" message
+                                    document.getElementById('upload-message').style.display = 'block';
+                                },
+                                error: function(error) {
+                                    // Handle error response
+                                    console.error(error);
+                                }
+                            });
+                        });
+                    </script>
+                  </div>
+                  <i class="fas fa-upload"></i> 
+                </div>
+                <script>
+                let popup = document.getElementById("upload-status");
+                
+                function openPopup(){
+                  popup.classList.add("open-popup");
+                }
+                function closePopup(){
+                  popup.classList.remove("open-popup");
+                }
+                </script>
+                <div class="box">
+                  <h3>Train with YOLOv4-Darknet</h3>
+                  <button type="submit" class="btn" onclick="openPopuptrain()">Train</button>
+                  <div class="popuptrain" id="train">
+                    <form action="{% url 'train' %}" method="post" enctype="multipart/form-data">
+                      {% csrf_token %}
+                      <h1>YOLOv4-Darknet Training</h1>
+              
+                      <label for="data_path">Data Path:</label>
+                      <input type="file" id="data_path" name="data_path" accept=".data" required><br>
+              
+                      <label for="cfg_path">Config Path:</label>
+                      <input type="file" id="cfg_path" name="cfg_path" accept=".cfg" required><br>
+              
+                      <label for="weight_path">Weight Path:</label>
+                      <input type="file" id="weight_path" name="weight_path" accept=".weights, .137" required><br>
+              
+                      <button type="submit">Train</button>
+                      <button type="button" onclick="closePopuptrain()">Close</button> 
+                  </div>
+                  <i class="fas fa-chart-line"></i>
+                </div>
+                <script>
+                  let popuptrain = document.getElementById("train");
+                  
+                  function openPopuptrain(){
+                    popuptrain.classList.add("open-popup");
+                  }
+                  function closePopuptrain(){
+                    popuptrain.classList.remove("open-popup");
+                  }
+                  </script>
+                <div class="box">
+                  <h3>Download from NVR</h3>
+                  <button type="button" class="btn" onclick="openPopupnvr()">Download</button>
+                  <div class="popupnvr" id="nvr-download">
+                      <form id="downloadForm" method="post" action="{% url 'downloadrequest-list-create' %}" class="needs-validation" novalidate enctype="multipart/form-data">
+                          {% csrf_token %}
+                          <h1>Download from NVR</h1>
+              
+                          {% if error_message %}
+                              <div id="error-message" class="alert alert-danger mt-3" role="alert">
+                                  {{ error_message }}
+                              </div>
+                          {% endif %}
+              
+                          {% if filename_exists %}
+                              <div id="filename-exists" class="alert alert-danger mt-3" role="alert">
+                                  {{ filename_exists }}
+                              </div>
+                          {% endif %}
+              
+                          <div class="form-group">
+                              <label for="start_date">Start Date:</label>
+                              <input type="date" class="form-control" name="start_date" required>
+                          </div>
+              
+                          <div class="form-group">
+                              <label for="channel">Channel:</label>
+                              <select class="form-control" name="channel" required>
+                                  <option value="101">101</option>
+                                  <option value="201">201</option>
+                                  <option value="301">301</option>
+                                  <option value="401">401</option>
+                                  <option value="501">501</option>
+                                  <option value="601">601</option>
+                                  <option value="701">701</option>
+                                  <option value="801">801</option>
+                              </select>
+                          </div>
+                          
+                          <button type="button" id="downloadButton" onclick="confirmAndSubmit()">Download</button>
+                          <button type="button" onclick="closePopupnvr()">Close</button>
+              
+                      </form>
+                  </div>
+                  <i class="fas fa-download"></i>
+              </div>
+              
+              <script>
+                // Define the openPopupnvr function in the global scope
+                function openPopupnvr() {
+                    let popupnvr = document.getElementById("nvr-download");
+                    if (popupnvr) {
+                        popupnvr.classList.add("open-popup");
+                    }
+                }
+                
+                document.addEventListener("DOMContentLoaded", function() {
+                    // Retrieve the form element
+                    let form = document.getElementById("downloadForm");
+                    
+                    // Check if the form element exists
+                    if (form) {
+                        // Define function to handle form submission
+                        function confirmAndSubmit() {
+                            console.log("confirmAndSubmit function called."); // Debug statement
+                            
+                            // Check if the form element exists
+                            if (form) {
+                                var startDate = form.elements['start_date'].value;
+                                var channel = form.elements['channel'].value;
+                
+                                console.log("Start Date:", startDate); // Debug statement
+                                console.log("Channel:", channel); // Debug statement
+                
+                                if (!startDate || !channel) {
+                                    alert('No data has been selected.');
+                                    return;
+                                }
+                
+                                if (confirm('Are you sure you want to download?')) {
+                                    var formData = new FormData(form);
+                                    var xhr = new XMLHttpRequest();
+                                    xhr.open('POST', form.action, true);
+                                    xhr.onload = function () {
+                                        if (xhr.status === 200) {
+                                            console.log('File downloaded successfully.');
+                                        } else {
+                                            console.error('File download failed.');
+                                        }
+                                    };
+                                    xhr.send(formData);
+                                }
+                            } else {
+                                console.error('Form element not found.');
+                            }
+                        }
+                        
+                        // Attach event listener to handle form submission
+                        let downloadButton = document.getElementById('downloadButton');
+                        if (downloadButton) {
+                            downloadButton.addEventListener('click', confirmAndSubmit);
+                        } else {
+                            console.error('Download button not found.');
+                        }
+                    } else {
+                        console.error('Form element not found.');
+                    }
+                });
+                </script>
+                
+              
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </body>
+    </html></span>

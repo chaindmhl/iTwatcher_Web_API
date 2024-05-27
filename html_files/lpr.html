@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>iTWATCHER API</title>
+    <!-- Add your CSS and JS files here -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'styles.css' %}">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+    <a class="navbar-brand" href="http://127.0.0.1:8000/my-url/">iTWatcher</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="collapsibleNavbar">
+        <ul class="navbar-nav ml-auto">
+            
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'downloadrequest-list-create' %}">Download Video From NVR</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'upload-video' %}">Upload Video</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'train' %}">Train</a>
+            </li>
+            
+            <li class="nav-item">
+                <span class="navbar-text mr-2">Welcome, {{ user.username }}</span>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Logout</a>
+            </li>
+            <!-- Add more links for other views here -->
+        </ul>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <!-- License Plate Recognition Section -->
+    <h2>License Plate Recognition</h2>
+    <form method="post" enctype="multipart/form-data" id="lpr-form">
+        {% csrf_token %}
+        <div class="row">
+            <div class="col-md-6">
+                <label for="selection">Choose Input Type:</label>
+                <select name="selection" id="selection" class="form-control">
+                    <option value="video-path">Video File</option>
+                    <option value="camera-feed">Camera Feed URL</option>
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3" id="video-path-input">
+            <div class="col-md-6">
+                <label for="video_path">Video file:</label>
+                <select name="video_path" id="video_path" class="form-control">
+                    {% for video in videos %}
+                        <option value="{{ video.id }}">{{ video.file.path }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3" id="camera-feed-input" style="display: none;">
+            <div class="col-md-6">
+                <label for="livestream_url">Live stream URL:</label>
+                <input type="text" name="livestream_url" id="livestream_url" class="form-control">
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <label for="vehicle_type_lpr">Model Type:</label>
+                <select name="vehicle_type" id="vehicle_type_lpr" class="form-control">
+                    <option value="tricycle">Tricycle</option>
+                    <option value="all_vehicle">Catch All</option>
+                    <option value="combi">iTWatcher</option>
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <input type="submit" value="Process" class="btn btn-primary">
+            </div>
+        </div>
+    </form>
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <a href="{% url 'display_plates' %}" class="btn btn-primary">View Plate Logs</a>
+        </div>
+    </div>
+</div>
+
+
+<script>
+  $(document).ready(function() {
+    $('#selection').on('change', function() {
+        var selectedOption = $(this).val();
+        if (selectedOption === 'video-path') {
+            $('#video-path-input').show();
+            $('#camera-feed-input').hide();
+        } else if (selectedOption === 'camera-feed') {
+            $('#video-path-input').hide();
+            $('#camera-feed-input').show();
+        }
+    });
+
+    $('#lpr-form').on('submit', function(event) {
+        event.preventDefault();
+        var formData = new FormData(this);
+        var selectedOption = $('#selection').val();
+        var selectedAction = $('#vehicle_type_lpr').val();
+
+        // Remove irrelevant field based on the selected option
+        if (selectedOption === 'video-path') {
+            formData.delete('livestream_url'); // Remove livestream_url if video-path is selected
+        } else if (selectedOption === 'camera-feed') {
+            formData.delete('video_path'); // Remove video_path if camera-feed is selected
+        }
+        
+        // Dynamically set the form action based on the selected option
+        if (selectedAction === 'tricycle') {
+                $(this).attr('action', 'http://127.0.0.1:8000/tracking/lpr_trike/');
+            } else if (selectedAction === 'all_vehicle') {
+                $(this).attr('action', 'http://127.0.0.1:8000/tracking/lpr_all/');
+            } else if (selectedAction === 'combi') {
+                $(this).attr('action', 'http://127.0.0.1:8000/tracking/lpr_combi/');
+            }
+
+    
+        console.log('Form Data:', formData); // Log form data for debugging
+        
+        $.ajax({
+            url: $(this).attr('action'),
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                // Handle success response
+            },
+            error: function(xhr, status, error) {
+                console.log('Error:', xhr.responseText);
+                console.log('Selected Option:', selectedOption);
+                console.log('FormData:', formData);
+                // Handle error response
+            }
+        });
+    });
+});
+
+</script>
+
+
+</body>
+</html>

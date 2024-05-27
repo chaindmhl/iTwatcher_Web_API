@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plate Log Display</title>
+</head>
+<body>
+    <h1>Plate Log Display</h1>
+    
+    {% if plate_logs %}
+        <ul>
+            {% for log in plate_logs %}
+                <li>
+                    <h2>{{ log.filename }}</h2>
+                    <p>Plate Number: {{ log.plate_number }}</p>
+                    <img src="{{ log.plate_image.url }}" alt="Plate Image" width="200">
+                    <img src="{{ log.frame_image.url }}" alt="Frame Image" width="200">
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No plate logs available.</p>
+    {% endif %}
+</body>
+</html>
