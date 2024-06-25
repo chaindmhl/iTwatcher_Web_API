@@ -1,15 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
+        /* Ensure the body has enough padding-top to prevent content from being hidden under the navbar */
+        body {
+            padding-top: 70px; /* Adjust according to your navbar height */
+        }
+
+        .navbar {
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000; /* Ensure navbar is above other content */
+        }
+
         table {
             border-collapse: collapse;
             width: 100%;
             border: 1px solid #5c5353;
+            margin-top: 20px; /* Adjust margin for better spacing */
         }
 
         th,
@@ -21,6 +33,9 @@
 
         th {
             background-color: #f2f2f2;
+            position: sticky;
+            top: 0; /* Stick to the top */
+            z-index: 1; /* Ensure it's above other content */
         }
 
         img {
@@ -29,81 +44,148 @@
             margin: 0 auto; /* Center-align the images */
         }
 
-        .button-container {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+        .editable-container {
+            position: relative;
+        }
+
+        .edit-btn {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
         }
 
         .button-container a {
             margin-bottom: 10px; /* Add your desired margin value here */
+            margin-right: 5px; /* Adjust spacing between buttons */
         }
     </style>
     <title>Plate Log</title>
 </head>
-
 <body>
-    <h1>Plate Log Information</h1>
 
-    {% if plate_logs %}
-    <table>
-        <thead>
-            <tr>
-                <th>TIME FRAME</th>
-                <th>VIDEO FILENAME</th>
-                <th>PLATE NUMBER</th>
-                <th>PLATE IMAGE</th>
-                <th>WARPED PLATE IMAGE</th>
-                <th>VIEW DETAILS</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in plate_logs|dictsortreversed:"timestamp" %}
-            <tr>
-                <td>{{ log.timestamp }}</td>
-                <td>{{ log.video_file }}</td>
-                <td contenteditable="true" class="editable-plate-number" data-log-id="{{ log.id }}">
-                    {{ log.plate_number }}
-                </td>
-                <td><img src="{{ log.plate_image.url }}" alt="Plate Image" width="100"></td>
-                <td>
-                    {% if log.warped_image %}
-                        <img src="{{ log.warped_image.url }}" alt="Warped Image" width="100">
-                    {% else %}
-                        No warped image available
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{% url 'view_frame' log_id=log.id %}" class="btn btn-primary btn-sm">
-                        View Frame
-                    </a>
-                    <br>
-                    <a href="{% url 'view_camera_map' log_id=log.id %}" class="btn btn-primary btn-sm">
-                        View Camera Map
-                    </a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p>No plate logs available.</p>
-    {% endif %}
+<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+    <a class="navbar-brand" href="http://{{ip_address}}:8000/my-url/">iTWatcher</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="collapsibleNavbar">
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'view_camera_map'%}">View Camera Map</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Logout</a>
+            </li>
+            <!-- Add more links for other views here -->
+        </ul>
+    </div>
+</nav>
 
 
-    <!-- Add the following script to enable editing -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var editablePlates = document.querySelectorAll('.editable-plate-number');
+{% if plate_logs %}
+<table>
+    <thead>
+        <tr>
+            <th style="position: sticky; top: 0; background-color: #f2f2f2; z-index: 1;">TIME FRAME</th>
+            <th style="position: sticky; top: 0; background-color: #f2f2f2; z-index: 1;">VIDEO FILENAME</th>
+            <th style="position: sticky; top: 0; background-color: #f2f2f2; z-index: 1;">PLATE NUMBER</th>
+            <th style="position: sticky; top: 0; background-color: #f2f2f2; z-index: 1;">PLATE IMAGE</th>
+            <th style="position: sticky; top: 0; background-color: #f2f2f2; z-index: 1;">FRAME IMAGE</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in plate_logs|dictsortreversed:"timestamp" %}
+        <tr>
+            <td>{{ log.timestamp }}</td>
+            <td>{{ log.video_file }}</td>
+            <td>
+                <div class="editable-container">
+                    <span class="editable-plate-number" contenteditable="true" data-log-id="{{ log.id }}">
+                        {{ log.plate_number }}
+                    </span>
+                    <button class="btn btn-sm btn-primary edit-btn">Edit</button>
+                    <button class="btn btn-sm btn-success save-btn" style="display: none;">Save</button>
+                </div>
+            </td>
+            <td><img src="{{ log.plate_image.url }}" alt="Plate Image" width="100"></td>
+            <td>
+                <a href="{% url 'view_frame' log_id=log.id %}" class="btn btn-primary btn-sm">
+                    Show
+                </a>
+            </td>
+            <td>
+                <!-- Optional: Add any additional actions here -->
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No plate logs available.</p>
+{% endif %}
 
-            editablePlates.forEach(function (editablePlate) {
-                editablePlate.addEventListener('input', function () {
-                    // You can add further logic here if needed
-                    // For example, you might want to save the edited plate number to the server
+<!-- Add the following script to enable editing -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var editableContainers = document.querySelectorAll('.editable-container');
+
+        editableContainers.forEach(function (container) {
+            var editablePlateNumber = container.querySelector('.editable-plate-number');
+            var editBtn = container.querySelector('.edit-btn');
+            var saveBtn = container.querySelector('.save-btn');
+
+            // Ensure initial content is not empty or only whitespace
+            if (!editablePlateNumber.textContent.trim()) {
+                editablePlateNumber.innerHTML = '&nbsp;'; // Set non-breaking space
+            }
+
+            editBtn.addEventListener('click', function () {
+                // Ensure content is not empty or only whitespace before editing
+                if (!editablePlateNumber.textContent.trim()) {
+                    editablePlateNumber.innerHTML = '&nbsp;'; // Set non-breaking space
+                }
+
+                editablePlateNumber.contentEditable = 'true';
+                editablePlateNumber.focus();
+                editBtn.style.display = 'none';
+                saveBtn.style.display = 'inline-block';
+            });
+
+            saveBtn.addEventListener('click', function () {
+                // Extract the updated plate number
+                var updatedPlateNumber = editablePlateNumber.textContent.trim();
+
+                // Send updated plate number to server (via AJAX or form submission)
+
+                // Example AJAX using Fetch API
+                fetch('/update-plate-number/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        log_id: editablePlateNumber.dataset.logId,
+                        plate_number: updatedPlateNumber
+                    })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Optionally update UI or notify user of successful update
+                    } else {
+                        // Handle errors or notify user of failure
+                    }
                 });
+
+                // Update UI
+                editablePlateNumber.contentEditable = 'false';
+                editBtn.style.display = 'inline-block';
+                saveBtn.style.display = 'none';
             });
         });
-    </script>
-</body>
+    });
+</script>
 
+</body>
 </html>
