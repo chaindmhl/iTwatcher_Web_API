@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path, include
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+from django.core.asgi import get_asgi_application
 from rest_framework.routers import DefaultRouter
 from .views import DownloadRequestListCreateView, DownloadRequestDetailView, success_page
 from tracking.views import (
@@ -14,7 +17,6 @@ from tracking.views import (
     ColorViewSet,
     SwervingViewSet,
     BlockingViewSet,
-
     MyView,
     UploadView,
     PlateView,
@@ -41,8 +43,7 @@ from tracking.views import (
     VioDetectionView,
     UploadView,
     generate_report,
-
-    
+    update_plate_number
 )
 
 router = DefaultRouter()
@@ -74,7 +75,7 @@ urlpatterns = [
     path('view_colorframe/<int:log_id>/', FrameColorView.view_colorframe, name='view_colorframe'),
     path('view_swerveframe/<int:log_id>/', FrameSwerveView.view_swerveframe, name='view_swerveframe'),
     path('view_blockframe/<int:log_id>/', FrameBlockView.view_blockframe, name='view_blockframe'),
-    path('view_camera_map/<int:log_id>/', MapView.view_camera_map, name='view_camera_map'),
+    path('view_camera_map/', MapView.view_camera_map, name='view_camera_map'),
     path('count_logs/', CountLogListView.as_view(), name='count_log_list'),
     path('vehicle_logs/', VehicleLogListView.as_view(), name='vehicle_log_list'),
     path('trikeall_logs/', TrikeVehicleLogListView.as_view(), name='trikeall_log_list'),
@@ -89,8 +90,11 @@ urlpatterns = [
     path('violation/', VioDetectionView.as_view(), name='viodetection'),
     path('upload-video/', UploadView.as_view(), name='upload-video'),
     path('swerve_report/<int:log_id>/', generate_report, name='generate_report'),
+    path('update-plate-number/', update_plate_number, name='update_plate_number'),
+    
 
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
