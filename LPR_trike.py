@@ -1,12 +1,6 @@
-import queue, os, time, cv2, math, tempfile
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
+import os
 import tensorflow as tf
-from tensorflow.python.saved_model import tag_constants
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-
-if len(physical_devices) > 0:
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+# tf.debugging.set_log_device_placement(True)
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
@@ -14,27 +8,38 @@ config = ConfigProto()
 config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)
 
-from tracking.deepsort_tric.deep_sort import preprocessing, nn_matching
-from tracking.deepsort_tric.deep_sort.detection import Detection
-from tracking.deepsort_tric.deep_sort.tracker import Tracker
-from tracking.deepsort_tric.tools import generate_detections as gdet
+# Now import other modules and start TensorFlow code
 import tracking.deepsort_tric.core.utils as utils
-from tracking.deepsort_tric.core.config_PD import cfg
-from tracking.deepsort_tric.read_plate_comb import YOLOv4Inference
+from tensorflow.python.saved_model import tag_constants
+from tracking.deepsort_tric.core.config_lpd import cfg
+from PIL import Image
+import cv2
+import numpy as np
+
+
+from tracking.deepsort_tric.read_plate import YOLOv4Inference
 from tracking.deepsort_tric.warp_plate import warp_plate_image
 from tracking.models import PlateLog
 
+# deep sort imports
+from tracking.deepsort_tric.deep_sort import preprocessing, nn_matching
+from tracking.deepsort_tric.deep_sort.detection1 import Detection
+from tracking.deepsort_tric.deep_sort.tracker import Tracker
+from tracking.deepsort_tric.tools import generate_detections as gdet
 from collections import deque
-from PIL import Image
-import numpy as np
+import math
+import tempfile
+import time, queue
+# from ..queue_module import shared_queue
 
 yolo_inference = YOLOv4Inference()
 stop_threads = False
 
 
+
 class Plate_Recognition_trike():
-    def __init__(self, file_counter_log_name, framework='tf', weights='./checkpoints/PlateDetection',
-                size=416, tiny=False, model='yolov4', video='./data/videos/cam0.mp4',
+    def __init__(self, file_counter_log_name, framework='tf', weights='./checkpoints/lpd_comb',
+                size=416, tiny=False, model='yolov4', video='./data/videos/cam0.mp4', outputfile=None,
                 output=None, output_format='XVID', iou=0.45, score=0.5,
                 dont_show=False, info=False,
                 detection_line=(0.5,0), frame_queue = queue.Queue(maxsize=100), processed_queue = queue.Queue(maxsize=100), processing_time=0):
@@ -57,6 +62,7 @@ class Plate_Recognition_trike():
         self._queue = frame_queue
         self._processedqueue = processed_queue
         self._time = processing_time
+        self._stop_threads = False 
 
     def _intersect(self, A, B, C, D):
         return self._ccw(A,C,D) != self._ccw(B, C, D) and self._ccw(A,B,C) != self._ccw(A,B,D)
@@ -68,7 +74,6 @@ class Plate_Recognition_trike():
         x = midpoint[0] - previous_midpoint[0]
         y = midpoint[1] - previous_midpoint[1]
         return math.degrees(math.atan2(y, x))
-    
     
     def _plate_within_roi(self, bbox, roi_vertices):
         # Calculate the center of the bounding box
@@ -275,16 +280,16 @@ class Plate_Recognition_trike():
                     warped_plate = warp_plate_image(plate_img)
                     plate_resized = cv2.resize(plate_img, (2000, 600), interpolation=cv2.INTER_LANCZOS4)
                     
-                    prediction = yolo_inference.infer_and_save(plate_resized)
+                    # prediction = yolo_inference.infer_and_save(plate_resized)
                     pred = yolo_inference.infer_image_only_thresh(plate_resized)
-                    plate_num = "".join(prediction["detected_classes"])
+                    # plate_num = "".join(prediction["detected_classes"])
                     plate_disp = "".join(pred["detected_classes"])
-                    image_name = plate_num + ".jpg"
+                    image_name = plate_disp + ".jpg"
 
                     if plate_disp:
                         if plate_display.get(track_id) is None:
                             # Save plate_num in the dictionary
-                            plate_num_dict[track_id] = plate_num
+                            # plate_num_dict[track_id] = plate_num
                             plate_display[track_id] = plate_disp
                             already_save[track_id] = True
                     else:
@@ -292,14 +297,14 @@ class Plate_Recognition_trike():
                         already_save[track_id] = False
 
                     current_timestamp = time.time()
-                    if image_name not in plate_num_dict:
+                    if plate_disp not in plate_num_dict:
                         # Save plate_num in the dictionary
-                        plate_num_dict[image_name] = current_timestamp
+                        plate_num_dict[plate_disp] = current_timestamp
 
                         # Save the plate log to the database
                         plate_log = PlateLog.objects.create(
-                            filename=image_name,
-                            plate_number=image_name.split('.')[0],
+                            # plate_number=image_name.split('.')[0],
+                             plate_number=plate_disp
                         )
                         
                         # Create temporary files for plate_img and frame
@@ -363,7 +368,7 @@ class Plate_Recognition_trike():
             # print("Error: Unable to open the video stream.")
             return
         
-        while not stop_threads:
+        while not self._stop_threads:
             ret, frame = cap.read()
             # print("reading video...")
             if not ret:
@@ -389,6 +394,7 @@ class Plate_Recognition_trike():
         input_size = self._size
         total_processing_time = 0
         num_frames_processed = 0
+        frame_count = 0 
 
         # Load configuration for object detector
         saved_model_loaded = tf.saved_model.load(self._weights, tags=[tag_constants.SERVING])
@@ -400,8 +406,9 @@ class Plate_Recognition_trike():
         metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
         tracker = Tracker(metric)
         memory = {}
-
-        while not stop_threads:
+        
+        
+        while not self._stop_threads:
             try:
                 frame = self._queue.get(timeout=1)
                 
@@ -411,15 +418,15 @@ class Plate_Recognition_trike():
             start_time = time.time()
 
             result = self._process_frame(frame, input_size, infer, encoder, tracker, memory)
+            self._processedqueue.put(result)
+        
+            
 
             end_time = time.time()
             processing_time = end_time - start_time
             total_processing_time += processing_time
             num_frames_processed += 1
-
-            if result is not None and len(result) > 0:
-                self._processedqueue.put(result)
-
+ 
         # Calculate average processing time
         average_processing_time = 0
         if num_frames_processed > 0:
@@ -430,76 +437,13 @@ class Plate_Recognition_trike():
         print(self._time)
         return average_processing_time  # Return average processing time
         
-
-    def show_frames(self):
-        global stop_threads
-        display_started = False
-        slow_motion = False
-        slow_motion_factor = 1
+    def retrieve_processed_frames(self):
+        processed_frames = []
+        while not self._processedqueue.empty():
+            processed_frames.append(self._processedqueue.get())
+        return processed_frames
+    
+    def stop(self):
+        self._stop_threads = True
         
-        while not stop_threads:
-            try:
-                if not display_started:
-                    # Check the length of the processed queue
-                    if self._processedqueue.qsize() < 5:                      
-                        time.sleep(0.1)  # Add a short delay to avoid busy-waiting
-                        continue
-                    else:
-                        display_started = True
-                                    
-                # Get the processed frame from the queue
-                result = self._processedqueue.get(timeout=1)
-
-                # Display the processed frame
-                cv2.imshow('Processed Frame', cv2.resize(result, (1000, 600)))
-
-                # Add the calculated delay based on average processing time
-                delay = int((self._time) * 1000)  # Convert seconds to milliseconds
-                if delay < 1:
-                    delay = 1  # Minimum delay of 1 millisecond
-                    
-                key = cv2.waitKey(delay) & 0xFF
-                
-                if key == ord('q'):
-                    stop_threads = True
-                    break
-                elif key == ord('s'):
-                    slow_motion = True
-                    slow_motion_factor = 11  # Set slow-motion factor for 's'
-                elif key == ord('r'):
-                    slow_motion = True
-                    slow_motion_factor =  22 # Set slower-motion factor for 'r'
-                elif key == ord('t'):
-                    slow_motion = True
-                    slow_motion_factor = 33  # Set slowest-motion factor for 't'
-                elif key == ord('n'):
-                    slow_motion = False  # Normal speed
-
-                # Slow motion effect by duplicating frames
-                if slow_motion:
-                    for _ in range(slow_motion_factor - 1):
-                        cv2.imshow('Processed Frame', cv2.resize(result, (1000, 600)))
-                        key = cv2.waitKey(delay) & 0xFF
-                        if key == ord('q'):
-                            stop_threads = True
-                            session.close()
-                            break
-                        elif key == ord('s'):
-                            slow_motion = True
-                            slow_motion_factor = 11  # Set slow-motion factor for 's'
-                        elif key == ord('r'):
-                            slow_motion = True
-                            slow_motion_factor = 22  # Set slower-motion factor for 'r'
-                        elif key == ord('t'):
-                            slow_motion = True
-                            slow_motion_factor = 33  # Set slowest-motion factor for 't'
-                        elif key == ord('n'):
-                            slow_motion = False  # Normal speed
-                            break
-
-            except queue.Empty:
-                continue
-
-        cv2.destroyAllWindows()
-
 session.close()
