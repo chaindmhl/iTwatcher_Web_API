@@ -15,15 +15,15 @@ config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)
 
 from tracking.deepsort_tric.deep_sort import preprocessing, nn_matching
-from tracking.deepsort_tric.deep_sort.detection import Detection
+from tracking.deepsort_tric.deep_sort.detection1 import Detection
 from tracking.deepsort_tric.deep_sort.tracker import Tracker
 from tracking.deepsort_tric.tools import generate_detections as gdet
 import tracking.deepsort_tric.core.utils as utils
-from tracking.deepsort_tric.core.config_vd import cfg
+from tracking.deepsort_tric.core.config_tc import cfg
 from tracking.models import VehicleLog
 from collections import Counter, deque
 import numpy as np
-
+from datetime import date
 stop_threads = False
 
 class Track_Count():
@@ -69,7 +69,7 @@ class Track_Count():
         return self.msu_count
     
     def get_sm_count(self):
-        return self.msu_count
+        return self.sm_count
     
     def get_oval_count(self):
         return self.oval_count
@@ -109,18 +109,7 @@ class Track_Count():
         
         return is_within_roi
 
-    def _process_frame(self,frame, input_size, infer, encoder, tracker, memory, already_save = {}, plate_display={}, plate_num_dict = {}, nms_max_overlap=0.1):
-        memory = {}
-        class_counter = Counter()
-        class_counts = class_counter
-        already_counted = deque(maxlen=50)  # temporary memory for storing counted IDs
-        already_passed = deque(maxlen=50)
-        passed_counter = {
-                        "Going National Highway": 0,
-                        "Going MSU CETD": 0,
-                        "Going SM": 0,
-                        "Going Oval Plaza": 0
-                    }
+    def _process_frame(self,frame, input_size, infer, encoder, tracker, memory, already_counted, already_passed, passed_counter, class_counts, nms_max_overlap=0.1):
         batch_size =1
         frame_size = frame.shape[:2]
                     
@@ -168,7 +157,7 @@ class Track_Count():
         class_names = utils.read_class_names(cfg.YOLO.CLASSES)
 
         # by default allow all classes in .names file
-        allowed_classes = ['tricycle_jeep', 'tricycle_tuktuk', 'tricycle_sikad', 'tricycle_topdown']
+        allowed_classes = ["tricycle (TukTuk)", "tricycle (Jeep)", "tricycle (Sikad)", "tricycle (TopDown)"]
 
         names = []
         deleted_indx = []
@@ -199,39 +188,36 @@ class Track_Count():
         tracker.predict()
         tracker.update(detections)
 
-        #hwy
-        x1 = 0
-        y1 = 400
-        x2 = 1400
-        y2 = 250
+        # Define lines
+        # hwy
+        x1, y1 = 0, 600
+        x2, y2 = 2400, 500
         line1 = [(x1, y1), (x2, y2)]
-        
-        #cetd
-        xa = 0
-        ya = 550
-        xb = 950
-        yb = 1400
+
+        # cetd
+        xa, ya = 0, 750
+        xb, yb = 500, 1500
         line2 = [(xa, ya), (xb, yb)]
-        
-        #sm
-        xc = 1200
-        yc = 300
-        xd = 2700
-        yd = 600
+
+        # cetd2 (considered with cetd for "Going West")
+        xa1, ya1 = 1400, 950
+        xb1, yb1 = 2480, 1300
+        line5 = [(xa1, ya1), (xb1, yb1)]
+
+        # sm
+        xc, yc = 2000, 0
+        xd, yd = 2100, 1000
         line3 = [(xc, yc), (xd, yd)]
 
-        #oval
-        xe = 900
-        ye = 1400
-        xf = 2600 
-        yf = 800
+        # oval
+        xe, ye = 200, 1200
+        xf, yf = 2200, 1000
         line4 = [(xe, ye), (xf, yf)]
 
-        # draw yellow line
-        cv2.line(frame, line1[0], line1[1], (0, 255, 0), 3)
-        cv2.line(frame, line2[0], line2[1], (0, 255, 0), 3)
-        cv2.line(frame, line3[0], line3[1], (0, 255, 0), 3)
-        cv2.line(frame, line4[0], line4[1], (0, 255, 0), 3)
+        # Draw green lines
+        lines = [line1, line2, line3, line4, line5]
+        for line in lines:
+            cv2.line(frame, line[0], line[1], (0, 255, 0), 3)
         
         #For Intersection
         roi_vertices = [
@@ -242,7 +228,7 @@ class Track_Count():
         ]
         
         # Create a list of lines for the corresponding directions.
-        lines = [line1, line2, line3, line4]
+        lines = [line1, line2, line3, line4, line5]
         for track in tracker.tracks:
                         if not track.is_confirmed() or track.time_since_update > 1:
                             continue
@@ -263,7 +249,7 @@ class Track_Count():
                         
                         
                         if self._plate_within_roi(bbox, roi_vertices) and track.track_id not in already_counted:   
-                            class_counter[class_name] += 1
+                            class_counts[class_name] += 1
                             self.total_counter += 1
 
                             # Set already counted for ID to true.
@@ -277,22 +263,26 @@ class Track_Count():
 
                                 angle = self._vector_angle(origin_midpoint, origin_previous_midpoint)
                     
-                                if direction == "Going National Highway" and angle > 0 and track.track_id not in already_passed:
+                                if direction == "Going North" and angle > 0 and track.track_id not in already_passed:
                                     passed_counter[direction] += 1
                                     already_passed.append(track.track_id)
                                     cv2.line(frame, line[0], line[1], (255, 0, 0), 2)  
-                                elif direction == "Going MSU CETD" and angle < 0 and track.track_id not in already_passed:
+                                elif direction == "Going West" and angle < 0 and track.track_id not in already_passed:
                                     passed_counter[direction] += 1
                                     already_passed.append(track.track_id)
                                     cv2.line(frame, line[0], line[1], (255, 0, 255), 2) 
-                                elif direction == "Going SM" and angle > 0 and track.track_id not in already_passed:
+                                elif direction == "Going East" and angle < 0 and track.track_id not in already_passed:
                                     passed_counter[direction] += 1
                                     already_passed.append(track.track_id)
                                     cv2.line(frame, line[0], line[1], (0, 0, 0), 2) 
-                                elif direction == "Going Oval Plaza" and angle < 0 and track.track_id not in already_passed:
+                                elif direction == "Going South" and angle < 0 and track.track_id not in already_passed:
                                     passed_counter[direction] += 1
                                     already_passed.append(track.track_id)
-                                    cv2.line(frame, line[0], line[1], (255, 255, 255), 2) 
+                                    cv2.line(frame, line[0], line[1], (255, 255, 255), 2)
+                                elif direction == "Going West" and angle < 0 and track.track_id not in already_passed:
+                                    passed_counter[direction] += 1
+                                    already_passed.append(track.track_id)
+                                    cv2.line(frame, line[0], line[1], (255, 0, 255), 2)
                                                                                                 
                         cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255,255,255), 2)  # WHITE BOX
                         cv2.putText(frame,str(class_name), (int(bbox[0]), int(bbox[1])), 0,
@@ -301,26 +291,43 @@ class Track_Count():
         # Save the count log to the database
         vehicle_logs = []
         for direction, cnt in passed_counter.items():
-            if direction == "Going National Highway":
+            if direction == "Going North":
                 hwy_count = cnt
-            elif direction == "Going MSU CETD":
+            elif direction == "Going West":
                 msu_count = cnt
-            elif direction == "Going SM":
+            elif direction == "Going East":
                 sm_count = cnt
-            elif direction == "Going Oval Plaza":
+            elif direction == "Going South":
                 oval_count = cnt
+    
+        current_date = date.today()
 
-        # Create a single VehicleLog entry with counts for each direction
-        vehicle_log = VehicleLog.objects.create(
-            filename=self._file_counter_log_name,
-            total_count=self.total_counter,
-            hwy_count=hwy_count,
-            msu_count=msu_count,
-            sm_count=sm_count,
-            oval_count=oval_count,
-            class_counts=class_counts,
-        )
-        vehicle_log.save()
+        # Check if a log for the current date already exists in the database
+        existing_log = VehicleLog.objects.filter(date=current_date).first()
+
+        # If a log for the current date already exists, update it with the new counts
+        if existing_log:
+            existing_log.total_count = self.total_counter
+            existing_log.hwy_count = hwy_count
+            existing_log.msu_count = msu_count
+            existing_log.sm_count = sm_count
+            existing_log.oval_count = oval_count
+            existing_log.class_counts = class_counts
+            existing_log.save()
+        else:
+            # Create a new VehicleLog entry with counts for each direction
+            vehicle_log = VehicleLog.objects.create(
+                date=current_date,
+                filename=self._file_counter_log_name,
+                total_count=self.total_counter,
+                hwy_count=hwy_count,
+                msu_count=msu_count,
+                sm_count=sm_count,
+                oval_count=oval_count,
+                class_counts=class_counts,
+            )
+            vehicle_log.save()
+
 
             # This needs to be larger than the number of tracked objects in the frame.
         if len(memory) > 50:
@@ -332,7 +339,7 @@ class Track_Count():
             class_count_str = f"{direction}:{cnt}"
             
             # Display the count for the direction
-            cv2.putText(frame, class_count_str, (int(0.02 * frame.shape[1]), int(h)), 0, 1.3e-3 * frame.shape[0], (255, 255, 0), 2)
+            cv2.putText(frame, class_count_str, (int(0.02 * frame.shape[1]), int(h)), 0, 1.3e-3 * frame.shape[0], (255, 0, 0), 3)
             h += 0.05 * frame.shape[0]
         
 
@@ -387,6 +394,15 @@ class Track_Count():
         metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
         tracker = Tracker(metric)
         memory = {}
+        class_counts = Counter()
+        already_counted = deque(maxlen=50) 
+        already_passed = deque(maxlen=50)
+        passed_counter = {
+                        "Going North": 0,
+                        "Going West": 0,
+                        "Going East": 0,
+                        "Going South": 0
+                    }
 
         while not stop_threads:
             try:
@@ -397,7 +413,7 @@ class Track_Count():
             
             start_time = time.time()
 
-            result = self._process_frame(frame, input_size, infer, encoder, tracker, memory)
+            result = self._process_frame(frame, input_size, infer, encoder, tracker, memory, already_counted, already_passed, passed_counter, class_counts)
 
             end_time = time.time()
             processing_time = end_time - start_time
@@ -417,75 +433,13 @@ class Track_Count():
         print(self._time)
         return average_processing_time  # Return average processing time
     
-    def show_frames(self):
-        global stop_threads
-        display_started = False
-        slow_motion = False
-        slow_motion_factor = 1
-        
-        while not stop_threads:
-            try:
-                if not display_started:
-                    # Check the length of the processed queue
-                    if self._processedqueue.qsize() < 5:                      
-                        time.sleep(0.1)  # Add a short delay to avoid busy-waiting
-                        continue
-                    else:
-                        display_started = True
-                                    
-                # Get the processed frame from the queue
-                result = self._processedqueue.get(timeout=1)
-
-                # Display the processed frame
-                cv2.imshow('Processed Frame', cv2.resize(result, (1000, 600)))
-
-                # Add the calculated delay based on average processing time
-                delay = int((self._time) * 1000)  # Convert seconds to milliseconds
-                if delay < 1:
-                    delay = 1  # Minimum delay of 1 millisecond
-                    
-                key = cv2.waitKey(delay) & 0xFF
-                
-                if key == ord('q'):
-                    stop_threads = True
-                    break
-                elif key == ord('s'):
-                    slow_motion = True
-                    slow_motion_factor = 11  # Set slow-motion factor for 's'
-                elif key == ord('r'):
-                    slow_motion = True
-                    slow_motion_factor =  22 # Set slower-motion factor for 'r'
-                elif key == ord('t'):
-                    slow_motion = True
-                    slow_motion_factor = 33  # Set slowest-motion factor for 't'
-                elif key == ord('n'):
-                    slow_motion = False  # Normal speed
-
-                # Slow motion effect by duplicating frames
-                if slow_motion:
-                    for _ in range(slow_motion_factor - 1):
-                        cv2.imshow('Processed Frame', cv2.resize(result, (1000, 600)))
-                        key = cv2.waitKey(delay) & 0xFF
-                        if key == ord('q'):
-                            stop_threads = True
-                            session.close()
-                            break
-                        elif key == ord('s'):
-                            slow_motion = True
-                            slow_motion_factor = 11  # Set slow-motion factor for 's'
-                        elif key == ord('r'):
-                            slow_motion = True
-                            slow_motion_factor = 22  # Set slower-motion factor for 'r'
-                        elif key == ord('t'):
-                            slow_motion = True
-                            slow_motion_factor = 33  # Set slowest-motion factor for 't'
-                        elif key == ord('n'):
-                            slow_motion = False  # Normal speed
-                            break
-
-            except queue.Empty:
-                continue
-
-        cv2.destroyAllWindows()
-
+    def retrieve_processed_frames(self):
+        processed_frames = []
+        while not self._processedqueue.empty():
+            processed_frames.append(self._processedqueue.get())
+        return processed_frames
+    
+    def stop(self):
+        self._stop_threads = True
+   
 session.close()
