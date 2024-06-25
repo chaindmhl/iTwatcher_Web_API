@@ -66,6 +66,9 @@ class CountLog(models.Model):
 
 class VehicleLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
+    date = models.DateField(default=timezone.now)
+    start_time = models.TimeField(default='00:00:00')
+    end_time = models.TimeField(default='00:00:00')
     filename = models.CharField(max_length=255, null=True)
     total_count = models.PositiveIntegerField(null=True)
     hwy_count = models.PositiveIntegerField(null=True)
@@ -80,7 +83,7 @@ class VehicleLog(models.Model):
         return self.timestamp.date()
     
     def __str__(self):
-        return f"VehicleLog - {self.timestamp}"
+        return f"Vehicle Log - Date: {self.date}, Time Interval: {self.start_time} - {self.end_time}"
 
 class PlateLog(models.Model):
     timestamp = models.DateTimeField(default=timezone.now)
