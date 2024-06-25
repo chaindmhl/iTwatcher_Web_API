@@ -10,151 +10,235 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <style>
+        #video-container {
+            position: relative;
+            width: 700px;  /* Set to your desired width */
+            height: 700px; /* Set to your desired height */
+            overflow: hidden;
+        }
+
+        #video-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-sm bg-dark navbar-dark">
-    <a class="navbar-brand" href="http://127.0.0.1:8000/my-url/">iTWatcher</a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
-        <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="collapsibleNavbar">
-        <ul class="navbar-nav ml-auto">
-            
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'downloadrequest-list-create' %}">Download Video From NVR</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'upload-video' %}">Upload Video</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'train' %}">Train</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'lpr-view' %}">LPR</a>
-            </li>
-            
-            <li class="nav-item">
-                <span class="navbar-text mr-2">Welcome, {{ user.username }}</span>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'login' %}">Logout</a>
-            </li>
-            <!-- Add more links for other views here -->
-        </ul>
-    </div>
-</nav>
+    <nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+        <a class="navbar-brand" href="http://{{ip_address}}:8000/my-url/">iTWatcher</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="collapsibleNavbar">
+            <ul class="navbar-nav ml-auto">
+                
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'vehicle_log_list' %}">View Vehicle Count Logs</a>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'login' %}">Logout</a>
+                </li>
+                <!-- Add more links for other views here -->
+            </ul>
+        </div>
+    </nav>
 
+<!-- Main Content -->
 <div class="container mt-4">
-    <!-- Track and Count Section -->
     <h2>Track and Count</h2>
-    <form method="post" enctype="multipart/form-data" id="track-count-form">
-        {% csrf_token %}
-        <div class="row">
-            <div class="col-md-6">
-                <label for="selection">Choose Input Type:</label>
-                <select name="selection" id="selection" class="form-control">
-                    <option value="video-path">Video File</option>
-                    <option value="camera-feed">Camera Feed URL</option>
-                </select>
-            </div>
-        </div>
-        <div class="row mt-3" id="video-path-input">
-            <div class="col-md-6">
-                <label for="video_path">Video file:</label>
-                <select name="video_path" id="video_path" class="form-control">
-                    {% for video in videos %}
-                        <option value="{{ video.id }}">{{ video.file.path }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-        <div class="row mt-3" id="camera-feed-input" style="display: none;">
-            <div class="col-md-6">
-                <label for="livestream_url">Live stream URL:</label>
-                <input type="text" name="livestream_url" id="livestream_url" class="form-control">
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <label for="vehicle_type_lpr">Model Type:</label>
-                <select name="vehicle_type" id="vehicle_type_tc" class="form-control">
-                    <option value="tricycle">Tricycle</option>
-                    <option value="all_vehicle">Catch All</option>
-                    <option value="combi">iTWatcher</option>
-                </select>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <input type="submit" value="Process" class="btn btn-primary">
-            </div>
-        </div>
-    </form>
-    <div class="row mt-3">
+    <div class="row">
         <div class="col-md-6">
-            <a href="{% url 'vehicle_log_list' %}" class="btn btn-primary">View Track and Count List</a>
+            <form method="post" enctype="multipart/form-data" id="tracking-form">
+                {% csrf_token %}
+                <!-- Input Type Selection -->
+                <div class="form-group">
+                    <label for="selection">Choose Input Type:</label>
+                    <select name="selection" id="selection" class="form-control">
+                        <option value="video-path">Video File</option>
+                        <option value="camera-feed">Camera Feed URL</option>
+                    </select>
+                </div>
+                
+                <!-- Video Path Input -->
+                <div id="video-path-input">
+                    <div class="form-group">
+                        <label for="video_path">Video file:</label>
+                        <select name="video_path" id="video_path" class="form-control">
+                            {% for video in videos %}
+                                <option value="{{ video.id }}">{{ video.file.path }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Camera Feed Input -->
+                <div id="camera-feed-input" style="display: none;">
+                    <div class="form-group">
+                        <label for="livestream_url">Live stream URL:</label>
+                        <input type="text" name="livestream_url" id="livestream_url" class="form-control">
+                    </div>
+                </div>
+                
+                <!-- Model Type Selection -->
+                <div class="form-group">
+                    <label for="vehicle_type_tc">Model Type:</label>
+                    <select name="vehicle_type" id="vehicle_type_tc" class="form-control">
+                        <option value="tricycle">Tricycle</option>
+                        <option value="all_vehicle">Catch All</option>
+                        <option value="combi">iTWatcher</option>
+                    </select>
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="form-group">
+                    <input type="submit" value="Process" class="btn btn-primary">
+                </div>
+            </form>
+        </div>
+        <div class="col-md-6" id="video-container">
+            <!-- Placeholder for video stream -->
+            <!-- Ensure this div is properly styled for video display -->
         </div>
     </div>
 </div>
 
-
-
 <script>
-    $(document).ready(function() {
-        $('#selection').on('change', function() {
-        var selectedOption = $(this).val();
-        if (selectedOption === 'video-path') {
-            $('#video-path-input').show();
-            $('#camera-feed-input').hide();
-        } else if (selectedOption === 'camera-feed') {
-            $('#video-path-input').hide();
-            $('#camera-feed-input').show();
-        }
-    });
+    document.addEventListener("DOMContentLoaded", function() {
+        console.log("Document is ready");
 
-        // Your existing AJAX code here
-        $('#track-count-form').on('submit', function(event) {
+        document.getElementById('tracking-form').addEventListener('submit', function(event) {
             event.preventDefault();
-            var formData = new FormData(this);
-            var selectedOption = $('#selection').val();
-            var selectedAction = $('#vehicle_type_tc').val();
+            console.log("Form submission intercepted.");
 
-            // Remove irrelevant field based on the selected option
+            var formData = new FormData(this);
+            var selectedOption = document.getElementById('selection').value;
+            var selectedAction = document.getElementById('vehicle_type_tc').value;
+
             if (selectedOption === 'video-path') {
-                formData.delete('livestream_url'); // Remove livestream_url if video-path is selected
+                formData.delete('livestream_url');
             } else if (selectedOption === 'camera-feed') {
-                formData.delete('video_path'); // Remove video_path if camera-feed is selected
+                formData.delete('video_path');
             }
 
+            var actionUrl = '';
             // Dynamically set the form action based on the selected option
             if (selectedAction === 'tricycle') {
-                $(this).attr('action', 'http://127.0.0.1:8000/tracking/tric/');
+                actionUrl = 'http://{{ip_address}}:8000/tracking/tric/';
             } else if (selectedAction === 'all_vehicle') {
-                $(this).attr('action', 'http://127.0.0.1:8000/tracking/catchall/');
+                actionUrl = 'http://{{ip_address}}:8000/tracking/catchall/';
             } else if (selectedAction === 'combi') {
-                $(this).attr('action', 'http://127.0.0.1:8000/tracking/combi/');
+                actionUrl = 'http://{{ip_address}}:8000/tracking/combi/';
             }
 
-            $.ajax({
-                url: $(this).attr('action'),
+            console.log("Sending AJAX request to:", actionUrl);
+
+            fetch(actionUrl, {
                 method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    // Handle success response
-                },
-                error: function(xhr, status, error) {
-                console.log('Error:', xhr.responseText);
-                console.log('Selected Option:', selectedOption);
-                console.log('FormData:', formData);
-                // Handle error response
-            }
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.body;
+            })
+            .then(body => {
+                const reader = body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                const videoContainer = document.getElementById('video-container');
+
+                // Create three img elements for triple-buffering
+                let imgElement1 = document.createElement('img');
+                let imgElement2 = document.createElement('img');
+                let imgElement3 = document.createElement('img');
+                imgElement1.style.opacity = 1;
+                imgElement2.style.opacity = 0;
+                imgElement3.style.opacity = 0;
+                videoContainer.appendChild(imgElement1);
+                videoContainer.appendChild(imgElement2);
+                videoContainer.appendChild(imgElement3);
+
+                let currentImageElement = imgElement1;
+                let nextImageElement = imgElement2;
+                let thirdImageElement = imgElement3;
+
+                let frameBuffer = '';
+                let frameStarted = false;
+
+                function updateFrame(frameData) {
+                    thirdImageElement.style.opacity = 0;
+                    thirdImageElement.onload = () => {
+                        currentImageElement.style.opacity = 0;
+                        nextImageElement.style.opacity = 0;
+                        thirdImageElement.style.opacity = 1;
+
+                        // Swap the current and next image elements
+                        [currentImageElement, nextImageElement, thirdImageElement] = [nextImageElement, thirdImageElement, currentImageElement];
+                    };
+
+                    thirdImageElement.src = `data:image/jpeg;base64,${frameData}`;
+                }
+
+                function read() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            console.log('Stream complete');
+                            return;
+                        }
+
+                        const chunk = decoder.decode(value, { stream: true });
+
+                        frameBuffer += chunk;
+
+                        let frameStart = frameBuffer.indexOf('data: ');
+                        let frameEnd = frameBuffer.indexOf('\n\n', frameStart);
+
+                        while (frameStart !== -1 && frameEnd !== -1) {
+                            const frameData = frameBuffer.substring(frameStart + 6, frameEnd);
+                            updateFrame(frameData);
+
+                            frameBuffer = frameBuffer.substring(frameEnd + 2);
+
+                            frameStart = frameBuffer.indexOf('data: ');
+                            frameEnd = frameBuffer.indexOf('\n\n', frameStart);
+                        }
+
+                        read();
+                    });
+                }
+
+                read();
+            })
+            .catch(error => {
+                console.error('AJAX error:', error);
+                alert("An error occurred: " + error);
             });
+        });
+
+        document.getElementById('selection').addEventListener('change', function() {
+            console.log("Selection changed");
+            var selectedOption = this.value;
+            if (selectedOption === 'video-path') {
+                document.getElementById('video-path-input').style.display = 'block';
+                document.getElementById('camera-feed-input').style.display = 'none';
+            } else if (selectedOption === 'camera-feed') {
+                document.getElementById('video-path-input').style.display = 'none';
+                document.getElementById('camera-feed-input').style.display = 'block';
+            }
         });
     });
 </script>
+
 
 </body>
 </html>
