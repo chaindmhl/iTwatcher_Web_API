@@ -1,18 +1,15 @@
 from django.conf import settings
-import os
-import cv2
-from django.conf import settings
+import datetime, requests, os, cv2, queue, threading
 from django.core.files import File
 from tracking.deepsort_tric.track_count_comb import Track_Count
-import datetime
-import requests
-from tracking.models import OutputVideo  # Replace 'myapp' with the name of your Django app
-
+from tracking.models import OutputVideo
 
 REQUEST_URL = f"http://{settings.HOST}:8000/"
 
 
 def process_trackcount_comb(video_path=None, livestream_url=None, is_live_stream=False, video_stream=None):
+
+    processed_frames = []
     # Tricycle Detection and Tracking
     if video_path:
         # Load the video file
@@ -28,7 +25,7 @@ def process_trackcount_comb(video_path=None, livestream_url=None, is_live_stream
         # Create an instance of the VehiclesCounting class
         tc = Track_Count(file_counter_log_name='vehicle_count.log',
                               framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/vehicle_detection_comb',
+                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/itwatcher',
                               size=416,
                               tiny=False,
                               model='yolov4',
@@ -39,64 +36,37 @@ def process_trackcount_comb(video_path=None, livestream_url=None, is_live_stream
                               score=0.5,
                               dont_show=False,
                               info=False,
-                              detection_line=(0.5, 0))
+                              detection_line=(0.5, 0),
+                              frame_queue = queue.Queue(maxsize=1200),
+                              processed_queue=queue.Queue(maxsize=100))
 
-        # Run the tracking algorithm on the video
-        tc.run()
+        # Start producer and consumer threads
+        producer_thread = threading.Thread(target=tc.producer)
+        consumer_thread = threading.Thread(target=tc.consumer)
 
-        # Release the video capture object and close any open windows
-        #video_file.release()
-        cv2.destroyAllWindows()
 
-        # Create an instance of ObjectTrack and save the video file to it
-        object_track = OutputVideo(
-            # ... Other fields ...
-            video_track=File(open(output_video_path, 'rb'))
-        )
-        object_track.save()
+        producer_thread.start()
+        consumer_thread.start()
 
-        # Retrieve the object track from the database
-        object_track = OutputVideo.objects.get(id=object_track.id)
+        # Retrieve frames from the processed_queue in real-time
+        while producer_thread.is_alive() or consumer_thread.is_alive():
+            try:
+                processed_frame = tc._processedqueue.get(timeout=1)  # Wait for a frame for 1 second
+                yield processed_frame  # Yield the processed frame
+            except queue.Empty:
+                continue
 
-        # Get the URL of the saved video file
-        video_url = object_track.video_file.url
+        # Ensure the threads are terminated
+        tc.stop()
+        
+        # Wait for both threads to finish
+        producer_thread.join()
+        consumer_thread.join()
+        print("stop threads")
 
-        # Return the path to the output video and the URL of the saved video file
-        return {'output_video_path': output_video_path, 'video_url': video_url}
-
-    elif livestream_url:
-        # Check if the livestream_url is valid
-        response = requests.get(livestream_url, auth=('username', 'password'))
-        if response.status_code != 200:
-            # Handle invalid url    
-            return {'error': 'Invalid livestream url'}
-
-        # Create a VideoCapture object using the livestream url
-        video_file = cv2.VideoCapture(livestream_url)
-
-        # get the current timestamp
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-
-        # create a unique output video name using the timestamp
-        output_video_path = os.path.join(output_folder_path, f'tracked_livestream_{timestamp}.avi')
-        os.makedirs(output_folder_path, exist_ok=True)
-
-        # Create an instance of the VehiclesCounting class
-        tc = Track_Count(file_counter_log_name='vehicle_count.log',
-                              framework='tf',
-                              weights='/home/icebox/itwatcher_api/tracking/deepsort_tric/checkpoints/vehicle_detection_comb',
-                              size=416,
-                              tiny=False,
-                              model='yolov4',
-                              #video=stream_path,
-                              video=video_file,
-                              output=output_video_path,
-                              output_format='XVID',
-                              iou=0.45,
-                              score=0.5,
-                              dont_show=False,
-                              info=False,
-                              detection_line=(0.5, 0))
-
-        # Run the tracking algorithm on the video stream
-        tc.run()
+        # Retrieve any remaining frames in the queue
+        while not tc._processedqueue.empty():
+            processed_frame = tc._processedqueue.get()
+            yield processed_frame
+        
+    return processed_frames
