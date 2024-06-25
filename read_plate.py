@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 class YOLOv4Inference:
-    def __init__(self, weights_path = "/home/icebox/itwatcher_api/darknet/LPR/backup_2/yolov4-custom_final.weights", config_path = "/home/icebox/itwatcher_api/darknet/LPR/yolov4-custom.cfg", class_names_path = "/home/icebox/itwatcher_api/darknet/LPR/obj.names", confidence_threshold=0.5, nms_threshold=0.4):
+    def __init__(self, weights_path = "/home/icebox/itwatcher_api/darknet/OCR/OCR.weights", config_path = "/home/icebox/itwatcher_api/darknet/OCR/OCR.cfg", class_names_path = "/home/icebox/itwatcher_api/darknet/OCR/OCR.names", confidence_threshold=0.5, nms_threshold=0.4):
     # Load YOLOv4 model, config_path, class_names_path, confidence_threshold=0.5, nms_threshold=0.4):
         self.weights_path = weights_path
         self.config_path = config_path
@@ -61,10 +61,40 @@ class YOLOv4Inference:
             detected_classes.append((label, x))
 
         return img,detected_classes
+    
+    def infer_image_only(self, img):
+        _, detected_classes_with_x = self.infer_image(img)
+
+        # Sort the detected classes based on their x-coordinates
+        sorted_detected_classes = [label for label, _ in sorted(detected_classes_with_x, key=lambda x: x[1])]
+
+        return {"detected_classes": sorted_detected_classes}
+
+
+    def infer_image_only_thresh(self, img):
+        prediction = self.infer_image(img)
+
+        if prediction is not None:
+            _, detected_classes_with_x = prediction
+
+            # Sort the detected classes based on their x-coordinates
+            sorted_detected_classes = [label for label, _ in sorted(detected_classes_with_x, key=lambda x: x[1])]
+
+            # Check if the number of detected classes is in the allowed lengths
+            num_detected_classes = len(sorted_detected_classes)
+            if num_detected_classes in [5,6,7, 8, 10]:
+                return {"detected_classes": sorted_detected_classes, "within_range": True}
+            else:
+                return {"detected_classes": [], "within_range": False, "reason": "Invalid number of detected classes"}
+
+        return {"detected_classes": [], "within_range": False}
+
+
+
        
-    def infer_and_save(self, image_path):
-        # Perform inference and get the annotated image and detected classes with x-coordinates
-        annotated_image, detected_classes_with_x = self.infer_image(image_path)
+    def infer_and_save(self, plate_image):
+        # Perform inference and get the detected classes
+        _, detected_classes_with_x = self.infer_image(plate_image)
         
         # Sort the detected classes based on their x-coordinates
         sorted_detected_classes = [label for label, _ in sorted(detected_classes_with_x, key=lambda x: x[1])]
@@ -74,21 +104,8 @@ class YOLOv4Inference:
         
         output_path = output_filename
         
-        # Save the annotated image
-        cv2.imwrite(output_path, annotated_image)
+        # Save the plate image (no need for the annotated image if not necessary)
+        cv2.imwrite(output_path, plate_image)
 
         return {"detected_classes": sorted_detected_classes}
-        
-# Create YOLOv4 inference object
-#yolo_inference = YOLOv4Inference()
-# Perform inference and get the annotated image and detected classes
-#annotated_image, detected_classes_with_x = yolo_inference.infer_image('/home/icebox/itwatcher_api/plates/3.jpg')
-#Sort the detected classes based on their x-coordinates
-#sorted_detected_classes = [label for label, _ in sorted(detected_classes_with_x, key=lambda x: x[1])]
-# Generate the output filename based on sorted detected classes (from left to right)
-#output_filename = "".join(sorted_detected_classes) + '.jpg'
-#output_path = output_filename
-#cv2.imwrite(output_path, annotated_image)
-#print(f"Annotated image saved as '{output_path}'")
-
 
