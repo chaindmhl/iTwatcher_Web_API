@@ -3,12 +3,11 @@ from rest_framework.permissions import IsAuthenticated
 from django.views import View
 from PIL import Image
 from io import BytesIO
-from django.conf import settings
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from django.shortcuts import render,redirect
-from django.http import FileResponse
+from django.shortcuts import render,redirect, get_object_or_404
+from django.views.decorators.http import require_POST
 from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
 from tracking.serializers import (
@@ -19,34 +18,38 @@ from tracking.serializers import (
     VehicleLogSerializer,
     DownloadRequestSerializer,
 )
-from tracking.models import Video, PlateLog, CountLog, ColorLog, VehicleLog, DownloadRequest, SwerveLog, BlockLog, NVRVideo
+from tracking.models import Video, PlateLog, CountLog, ColorLog, VehicleLog, DownloadRequest, SwerveLog, BlockLog
 from tracking.process_tc_trike import process_trackcount_trike
 from tracking.process_tc_all import process_trackcount_all
 from tracking.process_tc_comb import process_trackcount_comb
 from tracking.process_lpr_trike import process_lpr_trike
 from tracking.process_lpr_all import process_alllpr
 from tracking.process_lpr_comb import process_lpd_comb
+from tracking.deepsort_tric.LPR_comb import Plate_Recognition_comb
 from tracking.process_color import process_color
 from tracking.process_swerving import process_swerving
 from tracking.process_blocking import process_blocking
-from rest_framework.decorators import action
-#from tracking.process_frontside import process_frontside
+from django.http import StreamingHttpResponse
 
 # Define your Django Rest Framework view
 from rest_framework.response import Response
+import matplotlib
+matplotlib.use('Agg')  # Use the non-GUI backend 'Agg'
 import matplotlib.pyplot as plt
+import numpy as np
 from subprocess import Popen, PIPE
-import io, os, tempfile, base64, subprocess
+import io, os, base64, subprocess, socket, cv2, json
 from django.db.models import Count, F
 from datetime import timedelta, datetime
-from django.utils import timezone
 from tracking.forms import SignUpForm
 from django.contrib.auth.views import LoginView as AuthLoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render, get_object_or_404
-from .models import NVRVideo
-from django.conf import settings
+from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
+from django.shortcuts import render
+from django.urls import reverse
+from .queue_module import shared_queue
+import queue, time
+
 
 # Create your views here.
 class DarknetTrainView(View):
@@ -94,15 +97,21 @@ class LPRView(View):
     def get(self, request):
         users = User.objects.all()
         videos = Video.objects.all()
-        context = {'users': users, 'videos': videos}
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        context = {'users': users, 'videos': videos, 'hostname': hostname, 'ip_address': ip_address}  # Optionally pass hostname and ip_address to the template
         return render(request, 'html_files/lpr.html', context)
+
+
 
 class TrackCountView(View):
     
     def get(self, request):
         users = User.objects.all()
         videos = Video.objects.all()
-        context = {'users': users, 'videos': videos}
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        context = {'users': users, 'videos': videos, 'hostname': hostname, 'ip_address': ip_address}
         return render(request, 'html_files/track_count.html', context)  
 
 class ColorRecognitionView(View):
@@ -110,7 +119,9 @@ class ColorRecognitionView(View):
     def get(self, request):
         users = User.objects.all()
         videos = Video.objects.all()
-        context = {'users': users, 'videos': videos}
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        context = {'users': users, 'videos': videos, 'hostname': hostname, 'ip_address': ip_address}
         return render(request, 'html_files/color.html', context)
 
 class VioDetectionView(View):
@@ -118,7 +129,9 @@ class VioDetectionView(View):
     def get(self, request):
         users = User.objects.all()
         videos = Video.objects.all()
-        context = {'users': users, 'videos': videos}
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        context = {'users': users, 'videos': videos, 'hostname': hostname, 'ip_address': ip_address}
         return render(request, 'html_files/violation.html', context) 
 
 class MyView(LoginRequiredMixin, View):
@@ -127,7 +140,9 @@ class MyView(LoginRequiredMixin, View):
     def get(self, request):
         users = User.objects.all()
         videos = Video.objects.all()
-        context = {'users': users, 'videos': videos}
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        context = {'users': users, 'videos': videos, 'hostname': hostname, 'ip_address': ip_address}
         return render(request, 'html_files/index.html', context)
 
 class UploadView(View):
@@ -137,7 +152,9 @@ class UploadView(View):
     def get(self, request):
         users = User.objects.all()
         videos = Video.objects.all()
-        context = {'users': users, 'videos': videos}
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        context = {'users': users, 'videos': videos, 'hostname': hostname, 'ip_address': ip_address}
         return render(request, 'html_files/upload_video.html', context)
 
 class CountLogViewSet(viewsets.ModelViewSet):
@@ -158,8 +175,36 @@ class VideoUploadViewSet(viewsets.ModelViewSet):
     serializer_class = VideoSerializers
     permission_classes = [IsAuthenticated]
 
+class Streaming:
+    def stream_processed_frames(self, processed_frames):
+        if not processed_frames:
+            return StreamingHttpResponse(status=204)
 
-class ProcessTrikeViewSet(viewsets.ViewSet):
+        def generate():
+            for frame in processed_frames:
+                try:
+                    resized_frame = cv2.resize(frame, (1280, 720), interpolation=cv2.INTER_CUBIC)
+                    success, buffer = cv2.imencode('.jpg', resized_frame)
+                    
+                    while not success:
+                        print("Failed to encode frame, retrying...")
+                        success, buffer = cv2.imencode('.jpg', resized_frame)
+                        time.sleep(0.01)
+                    
+                    frame_base64 = base64.b64encode(buffer).decode('utf-8')
+                    yield f"data: {frame_base64}\n\n"
+                    
+                    time.sleep(0.05)  # Control the frame rate (20 FPS)
+                except Exception as e:
+                    print(f"Error processing frame: {e}")
+                    continue
+
+        response = StreamingHttpResponse(generate(), content_type='text/event-stream')
+        response['Cache-Control'] = 'no-cache'
+        response['Access-Control-Allow-Origin'] = '*'  # Update with specific domain if needed
+        return response
+    
+class ProcessTrikeViewSet(viewsets.ViewSet, Streaming):
     """
     Perform tricycle Detection in Videos
     """
@@ -169,173 +214,124 @@ class ProcessTrikeViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             data = serializer.validated_data
             video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
 
             if video_path:
-                context = process_trackcount_trike(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_trackcount_trike(livestream_url=livestream_url, video_stream=stream_path)
+                # Process video_path and return response
+                processed_frames = process_trackcount_trike(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
             else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
 
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class CatchAllViewSet(viewsets.ViewSet):
+class CatchAllViewSet(viewsets.ViewSet, Streaming):
     """
     Perform Vehicle Detection in Videos
     """
 
-    serializer_class = ProcessVideoSerializers
-
     def create(self, request):
-        serializer = ProcessVideoSerializers(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
-
-            if video_path:
-                context = process_trackcount_all(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_trackcount_all(livestream_url=livestream_url, video_stream=stream_path)
-            else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class ColorViewSet(viewsets.ViewSet):
-    """
-    Perform Vehicle Detection in Videos
-    """
-
-    serializer_class = ProcessVideoSerializers
-
-    def create(self, request):
-        serializer = ProcessVideoSerializers(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
-
-            if video_path:
-                context = process_color(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_color(livestream_url=livestream_url, video_stream=stream_path)
-            else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class CombiViewSet(viewsets.ViewSet):
-    """
-    Perform Vehicle Detection (Trike and Vehicle) in Videos
-    """
-
-    serializer_class = ProcessVideoSerializers
-
-    def create(self, request):
-        serializer = ProcessVideoSerializers(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
-
-            if video_path:
-                context = process_trackcount_comb(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_trackcount_comb(livestream_url=livestream_url, video_stream=stream_path)
-            else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-       
-    
-# class LPRTrikeViewSet(viewsets.ViewSet):
-#     """
-#     Perform LPR-trike in Videos
-#     """
-#     def create(self, request):
-#         serializer = ProcessVideoSerializers(data=request.data)
-#         if serializer.is_valid():
-#             data = serializer.validated_data
-#             video_path = data.get("video")
-#             livestream_url = data.get("camera_feed_url")
-
-#             if video_path:
-#                 context = process_lpr_trike(video_path=video_path)   
-#             elif livestream_url:
-#                 context = process_lpr_trike(livestream_url=livestream_url)
-#             else:
-#                 return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-#              # Return the path to the output video
-#             return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-#         # Return validation errors if any
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-import logging
-
-logger = logging.getLogger(__name__)
-
-class LPRTrikeViewSet(viewsets.ViewSet):
-    """
-    Perform LPR-trike in Videos
-    """
-
-    serializer_class = LPRSerializers
-
-    def create(self, request):
-        logger.info("Request Data: %s", request.data)  # Log the request data
-
         serializer = ProcessVideoSerializers(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
             video_path = data.get("video")
             livestream_url = data.get("livestream_url")
-
-            logger.info("Video Path: %s", video_path)
-            logger.info("Camera URL: %s", livestream_url)
+            print("URL:", video_path)
 
             if video_path:
-                context = process_lpr_trike(video_path=video_path)
-            elif livestream_url:
-                context = process_lpr_trike(livestream_url=livestream_url)
+                # Process video_path and return response
+                processed_frames = process_trackcount_all(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
             else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
+      
+class ColorViewSet(viewsets.ViewSet, Streaming):
+    """
+    Perform Vehicle Detection in Videos
+    """
 
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    serializer_class = ProcessVideoSerializers
+
+    def create(self, request):
+        serializer = ProcessVideoSerializers(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            video_path = data.get("video")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
+
+            if video_path:
+                # Process video_path and return response
+                processed_frames = process_color(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
+            else:
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+class CombiViewSet(viewsets.ViewSet, Streaming):
+    """
+    Perform Vehicle Detection (Trike and Vehicle) in Videos
+    """
+
+    def create(self, request):
+        serializer = ProcessVideoSerializers(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            video_path = data.get("video")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
+
+            if video_path:
+                # Process video_path and return response
+                processed_frames = process_trackcount_comb(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
+            else:
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class LPRTrikeViewSet(viewsets.ViewSet, Streaming):
+    """
+    Perform LPR-trike in Videos
+    """
+
+    def create(self, request):
+        serializer = ProcessVideoSerializers(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            video_path = data.get("video")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
+
+            if video_path:
+                # Process video_path and return response
+                processed_frames = process_lpr_trike(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
+            else:
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LPRAllViewSet(viewsets.ViewSet):
+class LPRAllViewSet(viewsets.ViewSet, Streaming):
     """
     Perform LPR-all in Videos
     """
@@ -345,106 +341,95 @@ class LPRAllViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             data = serializer.validated_data
             video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
 
             if video_path:
-                context = process_alllpr(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_alllpr(livestream_url=livestream_url, video_stream=stream_path)
+                # Process video_path and return response
+                processed_frames = process_alllpr(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
             else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  
-
-class LPRCombiViewSet(viewsets.ViewSet):
+    
+class LPRCombiViewSet(viewsets.ViewSet, Streaming):
     """
     Perform LPR_comb in Videos
     """
 
+    serializer_class = LPRSerializers
 
     def create(self, request):
         serializer = ProcessVideoSerializers(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
             video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
 
             if video_path:
-                context = process_lpd_comb(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_lpd_comb(livestream_url=livestream_url, video_stream=stream_path)
+                # Process video_path and return response
+                processed_frames = process_lpd_comb(video_path=video_path)  # Define this function accordingly
+                return self.stream_processed_frames(processed_frames)
             else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
 
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
-
-class SwervingViewSet(viewsets.ViewSet):
+class SwervingViewSet(viewsets.ViewSet, Streaming):
     """
     Perform Swerving Detection in Videos
     """
 
-
     def create(self, request):
         serializer = ProcessVideoSerializers(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
             video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
 
             if video_path:
-                context = process_swerving(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_swerving(livestream_url=livestream_url, video_stream=stream_path)
+                # Process video_path and return response
+                processed_frames = process_swerving(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
             else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class BlockingViewSet(viewsets.ViewSet):
+    
+class BlockingViewSet(viewsets.ViewSet, Streaming):
     """
     Perform Blocking Detection in Videos
     """
 
-
     def create(self, request):
         serializer = ProcessVideoSerializers(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
             video_path = data.get("video")
-            livestream_url = data.get("camera_feed_url")
+            livestream_url = data.get("livestream_url")
+            print("URL:", video_path)
 
             if video_path:
-                context = process_blocking(video_path=video_path)
-            elif livestream_url:
-                stream_path = livestream_url
-                #stream_file = cv2.VideoCapture(stream_path)
-                context = process_blocking(livestream_url=livestream_url, video_stream=stream_path)
+                # Process video_path and return response
+                processed_frames = process_blocking(video_path=video_path)  # Define this function accordingly
+
+                return self.stream_processed_frames(processed_frames)
             else:
-                return Response({"error": "Either video or camera_feed_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-             # Return the path to the output video
-            return Response({'output_video_path': context['output_video_path']}, status=status.HTTP_200_OK)
-
-        # Return validation errors if any
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"error": "Either video or livestream_url must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            print("Invalid serializer data:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
          
 class ColorView(View):
@@ -479,8 +464,14 @@ class PlateView(View):
         # Retrieve the remaining PlateLog records
         plate_logs = PlateLog.objects.all()
 
+        # Get the hostname and IP address
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        
         context = {
             'plate_logs': plate_logs,
+            'hostname': hostname,
+            'ip_address': ip_address,
         }
         return render(request, '/home/icebox/itwatcher_api/tracking/html_files/display_plates.html', context)
 
@@ -545,19 +536,36 @@ class FrameView(View):
     def view_frame(request, log_id):
         # Retrieve the PlateLog instance based on the log_id
         plate_log = PlateLog.objects.get(id=log_id)
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        
+
         context = {
             'plate_log': plate_log,
+            'hostname': hostname,
+            'ip_address': ip_address,
+
         }
         return render(request, '/home/icebox/itwatcher_api/tracking/html_files/view_frame.html', context)
     
 class MapView(View):
 
-    def view_camera_map(request, log_id):
-        plate_log = PlateLog.objects.get(id=log_id)
-        context = {
-            'plate_log': plate_log,
-        }
-        return render(request, '/home/icebox/itwatcher_api/tracking/html_files/view_camera_map.html', context)
+    def view_camera_map(request):
+        return render(request, '/home/icebox/itwatcher_api/tracking/html_files/view_camera_map.html')
+
+@require_POST
+def update_plate_number(request):
+    data = json.loads(request.body)
+    log_id = data.get('log_id')
+    plate_number = data.get('plate_number')
+
+    if log_id and plate_number:
+        plate_log = get_object_or_404(PlateLog, id=log_id)
+        plate_log.plate_number = plate_number
+        plate_log.save()
+        return HttpResponse(status=200)  # Successful update
+    else:
+        return HttpResponse(status=400)  # Bad request
 
 class CountLogListView(View):
 
@@ -650,16 +658,11 @@ class VehicleCountGraphView(View):
         # Extract class names and counts from the log
         class_names = list(log.class_counts.keys())
         class_counts = list(log.class_counts.values())
-        # Extract vehicle types and counts from the logs
-        # class_names = list(set(log.vehicle_type for log in logs))
-        # class_counts = [logs.filter(vehicle_type=vehicle_type).count() for vehicle_type in class_names]
-        print("Class Names:", class_names)
-        print("Class Counts:", class_counts)
 
         # Generate the bar graph
         bar_figure = plt.figure(figsize=(8, 6))
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'yellow', 'black']  # Add more colors if needed
-        #plt.bar(class_names, class_counts)
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'yellow', 'black', 'cyan','white','green', 'blue', 'violet']  # Add more colors if needed
+        
         # Calculate cumulative counts for each vehicle type
         cumulative_counts = [0] * len(class_names)
         for i, count in enumerate(class_counts):
@@ -672,6 +675,7 @@ class VehicleCountGraphView(View):
         bar_buffer = io.BytesIO()
         plt.savefig(bar_buffer, format='png')
         plt.close(bar_figure)
+        bar_graph_data = base64.b64encode(bar_buffer.getvalue()).decode()
 
         # Generate the pie chart
         pie_figure = plt.figure(figsize=(6, 4))
@@ -680,6 +684,7 @@ class VehicleCountGraphView(View):
         pie_buffer = io.BytesIO()
         plt.savefig(pie_buffer, format='png')
         plt.close(pie_figure)
+        pie_graph_data = base64.b64encode(pie_buffer.getvalue()).decode()
 
         # Generate the line graph
         line_figure = plt.figure(figsize=(6, 4))
@@ -690,10 +695,6 @@ class VehicleCountGraphView(View):
         line_buffer = io.BytesIO()
         plt.savefig(line_buffer, format='png')
         plt.close(line_figure)
-
-        # Convert the buffer data to base64 for embedding in the HTML
-        bar_graph_data = base64.b64encode(bar_buffer.getvalue()).decode()
-        pie_graph_data = base64.b64encode(pie_buffer.getvalue()).decode()
         line_graph_data = base64.b64encode(line_buffer.getvalue()).decode()
 
         context = {
