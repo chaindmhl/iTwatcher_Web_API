@@ -26,17 +26,13 @@
               <i class="fas fa-home"></i>
               <span class="nav-item">Home</span>
             </a></li>
-            <li><a href="{% url 'downloadrequest-list-create' %}">
-              <i class="fas fa-download"></i>
-              <span class="nav-item">Download</span>
+            <li><a href="{% url 'display_plates' %}">
+              <i class="fas fa-clipboard-list"></i>
+              <span class="nav-item">LPR Logs</span>
             </a></li>
-            <li><a href="{% url 'upload-video' %}">
-              <i class="fas fa-upload"></i>
-              <span class="nav-item">Upload</span>
-            </a></li>
-            <li><a href="{% url 'train' %}">
-              <i class="fas fa-chart-line"></i>
-              <span class="nav-item">Train</span>
+            <li><a href="{% url 'vehicle_log_list' %}">
+              <i class="fas fa-clipboard-list"></i>
+              <span class="nav-item">Vehicle Count Logs</span>
             </a></li>
             <li><a href="{% url 'login' %}" class="logout">
               <i class="fas fa-sign-out-alt"></i>
@@ -54,22 +50,17 @@
             <div class="lpr">
               <img src="{% static 'lpr.png' %}"class="small-image">
               <h3>License Plate Recognition</h3>
-              <button onclick="window.location.href='http://127.0.0.1:8000/lpr/'">Select</button>
+              <button onclick="window.location.href='http://{{ip_address}}:8000/lpr/'">Select</button>
             </div>
             <div class="track">
               <img src="{% static 'vehicle.png' %}" class="small-image">
               <h3>Tracking and Counting</h3>
-              <button onclick="window.location.href='http://127.0.0.1:8000/track/'">Select</button>
-            </div>
-            <div class="color">
-              <img src="{% static 'color.png' %}" class="small-image">
-              <h3>Color Recognition</h3>
-              <button onclick="window.location.href='http://127.0.0.1:8000/color/'">Select</button>
+              <button onclick="window.location.href='http://{{ip_address}}:8000/track/'">Select</button>
             </div>
             <div class="violation">
               <img src="{% static 'vio.jpg' %}" class="small-image">
               <h3>Violation Detection</h3>
-              <button onclick="window.location.href='http://127.0.0.1:8000/violation/'">Select</button>
+              <button onclick="window.location.href='http://{{ip_address}}:8000/violation/'">Select</button>
             </div>
           </div>
           
@@ -82,7 +73,7 @@
                   <h3>Upload Video</h3>
                   <button type="submit" class="btn" onclick="openPopup()">Upload</button>
                   <div class="popup" id="upload-status">
-                    <form id="upload-form" enctype="multipart/form-data" method="post" action="http://127.0.0.1:8000/tracking/video/">
+                    <form id="upload-form" enctype="multipart/form-data" method="post" action="http://{{ip_address}}:8000/tracking/video/">
                         <h2>Upload Video</h2>
                         <input type="file" name="file">
                         {% csrf_token %}
@@ -104,7 +95,7 @@
 
                             // Perform the AJAX request
                             $.ajax({
-                                url: "http://127.0.0.1:8000/tracking/video/",
+                                url: "http://{{ip_address}}:8000/tracking/video/",
                                 type: "POST",
                                 data: formData,
                                 contentType: false,
