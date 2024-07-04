@@ -25,18 +25,18 @@ from tracking.process_tc_comb import process_trackcount_comb
 from tracking.process_lpr_trike import process_lpr_trike
 from tracking.process_lpr_all import process_alllpr
 from tracking.process_lpr_comb import process_lpd_comb
-from tracking.deepsort_tric.LPR_comb import Plate_Recognition_comb
 from tracking.process_color import process_color
-from tracking.process_swerving import process_swerving
+from tracking.process_redlight import process_redlight
+
 from tracking.process_blocking import process_blocking
 from django.http import StreamingHttpResponse
+from rest_framework.views import APIView
 
 # Define your Django Rest Framework view
 from rest_framework.response import Response
 import matplotlib
 matplotlib.use('Agg')  # Use the non-GUI backend 'Agg'
 import matplotlib.pyplot as plt
-import numpy as np
 from subprocess import Popen, PIPE
 import io, os, base64, subprocess, socket, cv2, json
 from django.db.models import Count, F
@@ -46,9 +46,9 @@ from django.contrib.auth.views import LoginView as AuthLoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
-from django.urls import reverse
-from .queue_module import shared_queue
-import queue, time
+import time
+from rest_framework.decorators import action
+from tracking.deepsort_tric.helper.light_state import set_current_light_state, get_current_light_state
 
 
 # Create your views here.
@@ -382,7 +382,7 @@ class LPRCombiViewSet(viewsets.ViewSet, Streaming):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class SwervingViewSet(viewsets.ViewSet, Streaming):
+class RedLightViewSet(viewsets.ViewSet, Streaming):
     """
     Perform Swerving Detection in Videos
     """
@@ -397,7 +397,7 @@ class SwervingViewSet(viewsets.ViewSet, Streaming):
 
             if video_path:
                 # Process video_path and return response
-                processed_frames = process_swerving(video_path=video_path)  # Define this function accordingly
+                processed_frames = process_redlight(video_path=video_path)  # Define this function accordingly
 
                 return self.stream_processed_frames(processed_frames)
             else:
@@ -406,7 +406,19 @@ class SwervingViewSet(viewsets.ViewSet, Streaming):
             print("Invalid serializer data:", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    
+    @action(detail=False, methods=['post'])
+    def control_traffic_light(self, request):
+        color = request.data.get('color')
+        print(f"Received request to change light color to: {color}")
+        if color in ['red', 'yellow', 'green']:
+            set_current_light_state(color)
+            print(f"Light color successfully changed to: {get_current_light_state()}")
+            return Response({'status': 'success', 'current_light_state': get_current_light_state()}, status=status.HTTP_200_OK)
+        else:
+            print("Invalid color received")
+            return Response({'error': 'Invalid color'}, status=status.HTTP_400_BAD_REQUEST)
+        
+
 class BlockingViewSet(viewsets.ViewSet, Streaming):
     """
     Perform Blocking Detection in Videos
@@ -886,3 +898,5 @@ def generate_report(request, log_id):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     response.write(buffer.getvalue())
     return response
+
+
