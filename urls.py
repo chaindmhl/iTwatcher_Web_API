@@ -1,9 +1,6 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path, include
-from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-from django.core.asgi import get_asgi_application
 from rest_framework.routers import DefaultRouter
 from .views import DownloadRequestListCreateView, DownloadRequestDetailView, success_page
 from tracking.views import (
@@ -15,7 +12,7 @@ from tracking.views import (
     CombiViewSet,
     LPRCombiViewSet,
     ColorViewSet,
-    SwervingViewSet,
+    RedLightViewSet,
     BlockingViewSet,
     MyView,
     UploadView,
@@ -57,7 +54,7 @@ router.register("tracking/lpr_trike", LPRTrikeViewSet, basename="LPR-tric")
 # router.register("tracking/lpr-cam", LPRTrikeViewSet, basename="LPR-tric-cam")
 router.register("tracking/lpr_all", LPRAllViewSet, basename="LPR-All_Vehicle")
 router.register("tracking/lpr_combi", LPRCombiViewSet, basename="LPR-combi")
-router.register("tracking/swerving", SwervingViewSet, basename="tracking-swerving")
+router.register("tracking/redlight", RedLightViewSet, basename="tracking-redlight")
 router.register("tracking/blocking", BlockingViewSet, basename="tracking-blocking")
 
 urlpatterns = [
@@ -69,7 +66,7 @@ urlpatterns = [
     path('success/', success_page, name='success-page'),
     path('display_plates/', PlateView.as_view(), name='display_plates'),
     path('display_color/', ColorView.as_view(), name='display_color'),
-    path('swerving/', SwerveView.as_view(), name='swerving_list'),
+    path('redlight/', SwerveView.as_view(), name='redlight_list'),
     path('blocking/', BlockView.as_view(), name='blocking_list'),
     path('view_frame/<int:log_id>/', FrameView.view_frame, name='view_frame'),
     path('view_colorframe/<int:log_id>/', FrameColorView.view_colorframe, name='view_colorframe'),
@@ -91,6 +88,7 @@ urlpatterns = [
     path('upload-video/', UploadView.as_view(), name='upload-video'),
     path('swerve_report/<int:log_id>/', generate_report, name='generate_report'),
     path('update-plate-number/', update_plate_number, name='update_plate_number'),
+    path('control-traffic-light/', RedLightViewSet.as_view({'post': 'control_traffic_light'}), name='control-traffic-light'),  # Add this line
     
 
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
