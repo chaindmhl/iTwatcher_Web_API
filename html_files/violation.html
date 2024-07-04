@@ -10,11 +10,29 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <style>
+        #video-container {
+            position: relative;
+            width: 1200px;  /* Set to your desired width */
+            height: 700px; /* Set to your desired height */
+            overflow: hidden;
+        }
+
+        #video-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    
 </head>
 <body>
 
 <nav class="navbar navbar-expand-sm bg-dark navbar-dark">
-    <a class="navbar-brand" href="http://127.0.0.1:8000/my-url/">iTWatcher</a>
+    <a class="navbar-brand" href="http://{{ip_address}}:8000/my-url/">iTWatcher</a>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#collapsibleNavbar">
         <span class="navbar-toggler-icon"></span>
     </button>
@@ -22,26 +40,10 @@
         <ul class="navbar-nav ml-auto">
             
             <li class="nav-item">
-                <a class="nav-link" href="{% url 'downloadrequest-list-create' %}">Download Video From NVR</a>
+                <a class="nav-link" href="{% url 'redlight_list' %}">View Beating the Red Light Violation Logs</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'upload-video' %}">Upload Video</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'train' %}">Train</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'lpr-view' %}">LPR</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'track-count' %}">Tracking/Counting</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'color' %}">Color Recognition</a>
-            </li>
-            <li class="nav-item">
-                <span class="navbar-text mr-2">Welcome, {{ user.username }}</span>
-            </li>
+            
+            
             <li class="nav-item">
                 <a class="nav-link" href="{% url 'login' %}">Logout</a>
             </li>
@@ -50,86 +52,232 @@
     </div>
 </nav>
 
-<div class="container mt-4">
-    <!-- TViolation Detection Section -->
+<div class="container mt-4 ml-5">
     <h2>Violation Detection</h2>
-    <form method="post" enctype="multipart/form-data" id="violation-form">
-        {% csrf_token %}
-        <div class="row">
-            <div class="col-md-6">
-                <label for="video_path_v">Video file:</label>
-                <select name="video_path" id="video_path_v" class="form-control">
-                    {% for video in videos %}
-                        <option value="{{ video.id }}">{{ video.file.path }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <label for="camera_feed_url_v">Live stream URL:</label>
-                <input type="text" name="camera_feed_url" id="camera-url-input_v" class="form-control">
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <label for="violation_type">Violation Type:</label>
-                <select name="violation_type" id="violation_type">
-                    <option value="swerving">Swerving</option>
-                    <option value="pedestrian_block">Pedestrian Block</option>
-                </select>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-md-6">
-                <input type="submit" value="Process" class="btn btn-primary">
-            </div>
-        </div>
-    </form>
-    <div class="row mt-3">
+    <div class="row">
         <div class="col-md-6">
-            <a href="{% url 'swerving_list' %}" class="btn btn-primary">View Swerving Violation Logs</a>
+            <form method="post" enctype="multipart/form-data" id="vio-form">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-12">
+                        <label for="selection">Choose Input Type:</label>
+                        <select name="selection" id="selection" class="form-control">
+                            <option value="video-path">Video File</option>
+                            <option value="camera-feed">Camera Feed URL</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3" id="video-path-input">
+                    <div class="col-md-12">
+                        <label for="video_path">Video file:</label>
+                        <select name="video_path" id="video_path" class="form-control">
+                            {% for video in videos %}
+                                <option value="{{ video.id }}">{{ video.file.path }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3" id="camera-feed-input" style="display: none;">
+                    <div class="col-md-12">
+                        <label for="livestream_url">Live stream URL:</label>
+                        <input type="text" name="livestream_url" id="livestream_url" class="form-control">
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <label for="violation_type">Model Type:</label>
+                        <select name="vio_type" id="violation_type" class="form-control">
+                            <option value="redlight">Beating the Red Light</option>
+                            <option value="pedestrian_block">Blocking Pedestrian</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <input type="submit" value="Process" class="btn btn-primary">
+                    </div>
+                </div>
+            </form>
         </div>
-    </div>
-    <div class="row mt-3">
         <div class="col-md-6">
-            <a href="{% url 'blocking_list' %}" class="btn btn-primary">View Pedestrian Blocking Violation Logs</a>
+            <div id="video-container" class="text-right">
+                <!-- Video container content -->
+                <!-- Ensure no fixed width is applied here -->
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    $(document).ready(function() {
-        // Your existing AJAX code here
-        $('#violation-form').on('submit', function(event) {
-            event.preventDefault();
-            var formData = new FormData(this);
-            var selectedOption = $('#violation_type').val();
+    document.addEventListener("DOMContentLoaded", function() {
+        console.log("Document is ready");
 
-            // Dynamically set the form action based on the selected option
-            if (selectedOption === 'swerving') {
-                $(this).attr('action', 'http://127.0.0.1:8000/tracking/swerving/');
-            } else if (selectedOption === 'pedestrian_block') {
-                $(this).attr('action', 'http://127.0.0.1:8000/tracking/blocking/');
+        document.getElementById('vio-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            console.log("Form submission intercepted.");
+
+            var formData = new FormData(this);
+            var selectedOption = document.getElementById('selection').value;
+            var selectedAction = document.getElementById('violation_type').value;
+
+            if (selectedOption === 'video-path') {
+                formData.delete('livestream_url');
+            } else if (selectedOption === 'camera-feed') {
+                formData.delete('video_path');
+            }
+            
+            var actionUrl = '';
+            if (selectedAction === 'redlight') {
+                actionUrl = 'http://{{ip_address}}:8000/tracking/redlight/';
+            } else if (selectedAction === 'pedestrian_block') {
+                actionUrl = 'http://{{ip_address}}:8000/tracking/blocking/';
             }
 
-            $.ajax({
-                url: $(this).attr('action'),
+      
+            console.log("Sending AJAX request to:", actionUrl);
+
+            fetch(actionUrl, {
                 method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    // Handle success response
-                },
-                error: function(response) {
-                    console.log('Error:', response);
-                    // Handle error response
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.body;
+            })
+            .then(body => {
+                const reader = body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                const videoContainer = document.getElementById('video-container');
+
+                // Create three img elements for triple-buffering
+                let imgElement1 = document.createElement('img');
+                let imgElement2 = document.createElement('img');
+                let imgElement3 = document.createElement('img');
+                imgElement1.style.opacity = 1;
+                imgElement2.style.opacity = 0;
+                imgElement3.style.opacity = 0;
+                videoContainer.appendChild(imgElement1);
+                videoContainer.appendChild(imgElement2);
+                videoContainer.appendChild(imgElement3);
+
+                let currentImageElement = imgElement1;
+                let nextImageElement = imgElement2;
+                let thirdImageElement = imgElement3;
+
+                let frameBuffer = '';
+                let frameStarted = false;
+
+                function updateFrame(frameData) {
+                    thirdImageElement.style.opacity = 0;
+                    thirdImageElement.onload = () => {
+                        currentImageElement.style.opacity = 0;
+                        nextImageElement.style.opacity = 0;
+                        thirdImageElement.style.opacity = 1;
+
+                        // Swap the current and next image elements
+                        [currentImageElement, nextImageElement, thirdImageElement] = [nextImageElement, thirdImageElement, currentImageElement];
+                    };
+
+                    thirdImageElement.src = `data:image/jpeg;base64,${frameData}`;
+                }
+
+                function read() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            console.log('Stream complete');
+                            return;
+                        }
+
+                        const chunk = decoder.decode(value, { stream: true });
+
+                        frameBuffer += chunk;
+
+                        let frameStart = frameBuffer.indexOf('data: ');
+                        let frameEnd = frameBuffer.indexOf('\n\n', frameStart);
+
+                        while (frameStart !== -1 && frameEnd !== -1) {
+                            const frameData = frameBuffer.substring(frameStart + 6, frameEnd);
+                            updateFrame(frameData);
+
+                            frameBuffer = frameBuffer.substring(frameEnd + 2);
+
+                            frameStart = frameBuffer.indexOf('data: ');
+                            frameEnd = frameBuffer.indexOf('\n\n', frameStart);
+                        }
+
+                        read();
+                    });
+                }
+
+                read();
+            })
+            .catch(error => {
+                console.error('AJAX error:', error);
+                alert("An error occurred: " + error);
             });
+            });
+
+            document.getElementById('selection').addEventListener('change', function() {
+            console.log("Selection changed");
+            var selectedOption = this.value;
+            if (selectedOption === 'video-path') {
+                document.getElementById('video-path-input').style.display = 'block';
+                document.getElementById('camera-feed-input').style.display = 'none';
+            } else if (selectedOption === 'camera-feed') {
+                document.getElementById('video-path-input').style.display = 'none';
+                document.getElementById('camera-feed-input').style.display = 'block';
+            }
+        });
+        // Add key event listener for traffic light control
+        document.addEventListener('keydown', function(event) {
+            var selectedAction = document.getElementById('violation_type').value;
+
+            if (selectedAction === 'redlight') {
+                var color = null;
+                if (event.key === 'r' || event.key === 'R') {
+                    color = 'red';
+                    console.log("R key pressed");
+                } else if (event.key === 'y' || event.key === 'Y') {
+                    color = 'yellow';
+                    console.log("Y key pressed");
+                } else if (event.key === 'g' || event.key === 'G') {
+                    color = 'green';
+                    console.log("G key pressed");
+                }
+
+                if (color) {
+                    console.log("Changing traffic light state to:", color);
+
+                    fetch('http://{{ip_address}}:8000/control-traffic-light/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        body: JSON.stringify({ color: color })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            console.log("Traffic light state changed to:", data.current_light_state);
+                        } else {
+                            console.log("Error changing traffic light state:", data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error changing traffic light state:', error);
+                    });
+                }
+            }
         });
     });
 </script>
+
 
 </body>
 </html>
